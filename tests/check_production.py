@@ -36,6 +36,7 @@ with sync_playwright() as p:
         check('no JS errors', not errors, errors[:3])
         sw = page.evaluate('navigator.serviceWorker.getRegistration().then(r => !!r)')
         check('service worker registered', sw)
+        check('version 1.1.1', page.evaluate('window.__fgm.version') == '1.1.1', page.evaluate('window.__fgm.version'))
         if shots:
             page.screenshot(path=f'tests/shots/prod_{label}.png')
         ctx.close()
@@ -49,6 +50,7 @@ with sync_playwright() as p:
     page.goto(URL, wait_until='load')
     page.wait_for_timeout(4000)
     check('login screen shown', page.locator('#loginScreen').is_visible())
+    check('login has 3 languages', page.locator('#loginScreen [data-lang]').count() == 3)
     check('no JS errors', not errors, errors[:3])
     if shots:
         page.screenshot(path='tests/shots/prod_login.png')

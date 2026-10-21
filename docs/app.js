@@ -20,7 +20,7 @@ import { CATEGORIES, catColor, defaultCategory } from './lib/categories.js';
 import { preparePhoto, dataUrlToFile, MAX_PHOTOS } from './lib/photos.js';
 import { toKML, toGeoJSON, toCSV, toZip, download, stamp, parseKML, parseGeoJSON, readKmz, measure } from './lib/export.js';
 
-const VERSION = '1.1.0';
+const VERSION = '1.1.1';
 const $ = (id) => document.getElementById(id);
 const DEMO_KEY = 'fgm.demo';
 const VIEW_KEY = 'fgm.view';
@@ -1234,7 +1234,11 @@ function openLangDialog() {
 
 function openHelp() {
   $('helpBody').innerHTML = helpHtml();
-  $('helpDialog').showModal();
+  const d = $('helpDialog');
+  d.showModal();
+  // 開くと一番下の「閉じる」にフォーカスが当たって末尾までスクロールされるので、先頭に戻す
+  d.scrollTop = 0;
+  requestAnimationFrame(() => { d.scrollTop = 0; });
 }
 
 function openMenu() {

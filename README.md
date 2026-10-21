@@ -52,7 +52,7 @@
 - `firestore.rules` … field_visit_map のルールに `gpsFeatures` の項を足したもの。
   **Firebase プロジェクトを共有しているため、`../field_visit_map/firestore.rules` と常に同じ内容にする。**
 - `tests/` … `node tests/test_geo.mjs`(面積・距離)、`node tests/test_i18n.mjs`(翻訳の抜け)、
-  `python tests/e2e_demo.py --shots`(Edge で歩行・写真・3言語・圏外を模擬した通し試験。79項目)、
+  `python tests/e2e_demo.py --shots`(Edge で歩行・写真・3言語・圏外を模擬した通し試験。80項目)、
   `python tests/check_production.py --shots`(本番URLの確認)
 
 ## データの形(Firestore `gpsFeatures`)

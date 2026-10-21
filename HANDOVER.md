@@ -5,7 +5,7 @@
 Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_field_data_report.pdf)を踏まえ、
 「オフラインで動いて Google マップを使い、共有しやすいサービス」を作る。JatLog・field_visit_map の経験を流用してよい。
 
-## 今の状態(2026-10-21 v1.1.0 公開)
+## 今の状態(2026-10-21 v1.1.1 公開)
 
 - 公開URL: https://mameyompo-maker.github.io/field-gps-map/ (試用は末尾に `?demo`)
 - リポジトリ: https://github.com/mameyompo-maker/field-gps-map (public、Pages = main / docs)
@@ -18,7 +18,7 @@ Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_f
   5. JatLog にならった自動更新と圏外対応の強化(定期的な更新確認、記録中は更新を待つ、
      メニューに圏外の準備・未送信件数・最終同期を表示、手動の「更新を確認」)。
 - Firestore ルール:`gpsFeatures/{id}/photos` を追加してデプロイ済み。field_visit_map/firestore.rules にも同じ内容を入れて push 済み。
-- 試験:通し試験 79/79(`tests/e2e_demo.py`)、翻訳 247 キー×3言語の抜けなし、ルールの試験 25/25。
+- 試験:通し試験 80/80(`tests/e2e_demo.py`)、翻訳 247 キー×3言語の抜けなし、ルールの試験 25/25。
 - 途中で見つけて直したバグ:角のボタンで「直近 2.5 秒で精度が同じ測位」が並ぶと最も古い測位を使い、
   前の角のそばの位置が入っていた。基本は最新の測位を使うように直した(`docs/lib/gps.js` の bestRecentFix)。
 
