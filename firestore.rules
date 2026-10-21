@@ -1,0 +1,102 @@
+rules_version = '2';
+
+/*
+ * field_visit_map の権限モデル:
+ *   - allowedUsers/{emailLowercase} に登録されたメールアドレスだけが読み書きできる。
+ *     これが唯一の真実源(Storage側もこのコレクションを参照する。二重管理しない)。
+ *   - pins/visits の createdBy/visitedBy は必ずリクエスト元トークンの本人と一致させる
+ *     (要件「誰が行ったか自動記録・手入力不可・なりすまし不可」の担保)。
+ *   - 全員が同じ権限(閲覧+書き込み)。閲覧専用ロールは無い(Kazさん確定事項)。
+ *   - 削除は archived フラグの論理削除のみ。物理削除は許可しない。
+ */
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isAllowed() {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && exists(/databases/$(database)/documents/allowedUsers/$(myEmail()));
+    }
+
+    function isMe(who) {
+      return who.uid == request.auth.uid && who.email.lower() == myEmail();
+    }
+
+    // allowedUsers:
+    //   自分の行は「まだ許可されていない人」でも読めなければならない。
+    //   ここを isAllowed() だけにすると、未登録の人は自分の行を読んだ瞬間に
+    //   permission-denied になり、アプリ側が「許可/不許可」を判定できず
+    //   読み込み中のまま固まる(実際にその不具合を出した)。
+    //   読めるのは常に自分の1行だけなので、他人の登録状況は漏れない。
+    // 書き込みはKazさんがFirebase Console経由で行う運用のため、クライアントからは禁止。
+    match /allowedUsers/{email} {
+      allow read: if isAllowed() || (isSignedIn() && email == myEmail());
+      allow write: if false;
+    }
+
+    match /pins/{pinId} {
+      allow read: if isAllowed();
+      allow create: if isAllowed()
+        && isMe(request.resource.data.createdBy)
+        && request.resource.data.archived == false;
+      // 物理削除は禁止。archivedフラグの付け外しと通常の編集だけを許可する。
+      allow update: if isAllowed();
+      allow delete: if false;
+
+      match /visits/{visitId} {
+        allow read: if isAllowed();
+        allow create: if isAllowed() && isMe(request.resource.data.visitedBy);
+        // 訪問記録は追記が基本。誤記の訂正程度の更新は許すが、visitedByの書き換え
+        // (なりすまし)は禁止する。
+        allow update: if isAllowed()
+          && request.resource.data.visitedBy == resource.data.visitedBy;
+        allow delete: if false;
+
+        match /photos/{photoId} {
+          allow read: if isAllowed();
+          allow create: if isAllowed() && isMe(request.resource.data.uploadedBy);
+          // アップロード完了時に uploadStatus/fullURL/thumbURL だけを更新できる。
+          allow update: if isAllowed()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                 .hasOnly(['uploadStatus', 'fullURL', 'thumbURL']);
+          allow delete: if false;
+        }
+      }
+    }
+
+    // ---- field_gps_map(GPS で圃場の境界・地点を記録するアプリ)----
+    // 同じ Firebase プロジェクトを共有しているため、ルールは1つのファイルにまとめる。
+    // このブロックの原本は projects/field_gps_map/firestore.rules。両方を同じ内容に保つこと
+    // (片方だけデプロイすると、もう片方のアプリのルールが消える)。
+    //   - 許可リスト(allowedUsers)は field_visit_map と共通。
+    //   - createdBy は作成時に本人と一致、以後は書き換え禁止。updatedBy は常に本人。
+    //   - 削除は archived フラグの論理削除のみ。
+    match /gpsFeatures/{featureId} {
+      allow read: if isAllowed();
+      allow create: if isAllowed()
+        && isMe(request.resource.data.createdBy)
+        && isMe(request.resource.data.updatedBy)
+        && request.resource.data.archived == false
+        && request.resource.data.kind in ['point', 'polygon', 'line']
+        && request.resource.data.vertices is list
+        && request.resource.data.vertices.size() >= 1
+        && request.resource.data.vertices.size() <= 5000;
+      allow update: if isAllowed()
+        && request.resource.data.createdBy == resource.data.createdBy
+        && request.resource.data.kind == resource.data.kind
+        && isMe(request.resource.data.updatedBy)
+        && request.resource.data.vertices is list
+        && request.resource.data.vertices.size() <= 5000;
+      allow delete: if false;
+    }
+
+  }
+}
