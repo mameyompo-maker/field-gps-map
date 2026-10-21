@@ -17,7 +17,25 @@ export function catColor(key) {
   return c ? c.color : '#f9a825';
 }
 
-/** 新しく記録するときの既定の分類(図形の種類から)。 */
+// 保存の画面で出す分類(図形の種類に合うものだけ。選ぶ手間を減らす)
+const BY_KIND = {
+  polygon: ['field', 'block', 'nursery', 'building', 'other'],
+  line: ['hedge', 'water', 'road', 'other'],
+  point: ['tree', 'water', 'building', 'other']
+};
+
+/** 保存の画面に出す分類。今の値が一覧に無ければ(古い記録・読み込み)それも足す。 */
+export function categoriesFor(kind, current) {
+  const keys = BY_KIND[kind] || CATEGORIES.map((c) => c.key);
+  const list = CATEGORIES.filter((c) => keys.includes(c.key));
+  if (current && !keys.includes(current)) {
+    const c = CATEGORIES.find((x) => x.key === current);
+    if (c) list.splice(list.length - 1, 0, c);
+  }
+  return list;
+}
+
+/** 新しく記録するときの既定の分類(図形の種類から)。線は生垣が多い。 */
 export function defaultCategory(kind) {
-  return kind === 'polygon' ? 'field' : kind === 'line' ? 'water' : 'tree';
+  return kind === 'polygon' ? 'field' : kind === 'line' ? 'hedge' : 'tree';
 }

@@ -1,6 +1,6 @@
 /* field_gps_map — 記録中の図形(下書き)の状態管理。
  *
- * 画面(app.js)から切り離した純粋な状態機械。記録の方式は2つ:
+ * 画面(app.js)から切り離した純粋な状態機械。記録の方式は2つ(記録の途中で切り替えられる):
  *   corners … 歩いて角に来たらボタンを押す。その瞬間の測位で1点(待ち時間なし)。
  *             1つの圃場で 10 点以内に収めたい(Kazさん 2026-10-21)ので、
  *             歩くだけで点が増える方式(旧 walk)はやめた。
@@ -49,6 +49,13 @@ export function createRecorder() {
 
     start(kind, method) {
       st = { kind, method, vertices: [], startedAt: Date.now() };
+      emit();
+    },
+
+    /** 記録の途中で「歩いて(GPS)」と「地図をタップ」を切り替える。打った点はそのまま。 */
+    setMethod(method) {
+      if (!st || st.method === method) return;
+      st.method = method;
       emit();
     },
 

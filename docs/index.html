@@ -121,6 +121,10 @@
       <div class="rec-title"><strong id="recTitle"></strong><span id="recHint"></span></div>
       <button id="btnRecCancel" class="icon-btn tappable" type="button" data-i18n-title="rec.cancel"><svg class="ic"><use href="#i-close"/></svg></button>
     </div>
+    <div class="seg" id="recMode" role="group">
+      <button type="button" data-mode="gps" class="tappable"><svg class="ic"><use href="#i-walk"/></svg><span data-i18n="rec.mode.gps"></span></button>
+      <button type="button" data-mode="tap" class="tappable"><svg class="ic"><use href="#i-tap"/></svg><span data-i18n="rec.mode.tap"></span></button>
+    </div>
     <div class="rec-stats">
       <div class="stat-main"><span class="stat-label" data-i18n="rec.vertices"></span><strong id="stVertices">0</strong><small id="stGoal" class="muted"></small></div>
       <div id="stAreaBox"><span class="stat-label" data-i18n="rec.area"></span><strong id="stArea">—</strong></div>
@@ -144,7 +148,6 @@
       <button type="button" class="choice tappable" data-kind="line"><span class="choice-ic"><svg class="ic"><use href="#i-line"/></svg></span><strong data-i18n="kind.line"></strong><span data-i18n="kind.line.d"></span></button>
       <button type="button" class="choice tappable" data-kind="point"><span class="choice-ic"><svg class="ic"><use href="#i-point"/></svg></span><strong data-i18n="kind.point"></strong><span data-i18n="kind.point.d"></span></button>
     </div>
-    <div id="newMethods" class="choice-list" hidden></div>
   </section>
 
   <!-- 一覧 -->
@@ -153,21 +156,7 @@
     <div class="sheet-head"><h2 data-i18n="list.title"></h2><button class="icon-btn tappable" data-close type="button" aria-label="×"><svg class="ic"><use href="#i-close"/></svg></button></div>
     <div class="list-filters">
       <input id="listSearch" type="search" data-i18n-ph="list.search" autocomplete="off">
-      <div class="chips" id="listKind" role="group">
-        <button type="button" data-k="" class="chip-sel on" data-i18n="list.all"></button>
-        <button type="button" data-k="polygon" class="chip-sel" data-i18n="list.areas"></button>
-        <button type="button" data-k="line" class="chip-sel" data-i18n="list.lines"></button>
-        <button type="button" data-k="point" class="chip-sel" data-i18n="list.points"></button>
-      </div>
-      <div class="list-row2">
-        <label class="check"><input id="listMine" type="checkbox"> <span data-i18n="list.mine"></span></label>
-        <select id="listGroup"></select>
-        <select id="listSort">
-          <option value="new" data-i18n="list.sort.new"></option>
-          <option value="name" data-i18n="list.sort.name"></option>
-          <option value="area" data-i18n="list.sort.area"></option>
-        </select>
-      </div>
+      <div class="chips scroll" id="listGroups" role="group"></div>
       <p id="listSummary" class="list-summary"></p>
     </div>
     <ul id="listItems" class="feature-list"></ul>
@@ -180,7 +169,6 @@
     <div id="dStats" class="detail-stats"></div>
     <div class="photo-strip" id="dPhotos"></div>
     <div class="action-row">
-      <button id="dZoom" type="button" class="action tappable"><span><svg class="ic"><use href="#i-target"/></svg></span><small data-i18n="d.zoom"></small></button>
       <a id="dGmaps" class="action tappable" target="_blank" rel="noopener"><span><svg class="ic"><use href="#i-gmaps"/></svg></span><small data-i18n="d.gmaps"></small></a>
       <button id="dShare" type="button" class="action tappable"><span><svg class="ic"><use href="#i-share"/></svg></span><small data-i18n="d.share"></small></button>
       <button id="dShareKml" type="button" class="action tappable"><span><svg class="ic"><use href="#i-download"/></svg></span><small data-i18n="d.kml"></small></button>
@@ -232,17 +220,13 @@
     <div id="stLast" class="status-row muted small"></div>
   </div>
   <nav class="menu-items">
-    <button type="button" data-act="list"><svg class="ic"><use href="#i-list"/></svg><span data-i18n="menu.list"></span></button>
-    <button type="button" data-act="sync"><svg class="ic"><use href="#i-cloud-ok"/></svg><span data-i18n="menu.sync"></span></button>
     <button type="button" data-act="export"><svg class="ic"><use href="#i-download"/></svg><span data-i18n="menu.export"></span></button>
     <button type="button" data-act="import"><svg class="ic"><use href="#i-upload"/></svg><span data-i18n="menu.import"></span></button>
     <button type="button" data-act="lang"><svg class="ic"><use href="#i-globe"/></svg><span data-i18n="menu.lang"></span></button>
-    <button type="button" data-act="settings"><svg class="ic"><use href="#i-settings"/></svg><span data-i18n="menu.settings"></span></button>
     <button type="button" data-act="help"><svg class="ic"><use href="#i-help"/></svg><span data-i18n="menu.help"></span></button>
-    <button type="button" data-act="update"><svg class="ic"><use href="#i-refresh"/></svg><span data-i18n="menu.update"></span><span id="menuUpdDot" class="upd-dot inline" hidden></span></button>
     <button type="button" data-act="signout" class="danger"><svg class="ic"><use href="#i-user"/></svg><span id="menuSignoutText" data-i18n="menu.signout"></span></button>
   </nav>
-  <p class="muted small menu-version" id="menuVersion"></p>
+  <button type="button" class="menu-version tappable" id="menuUpdate"><svg class="ic"><use href="#i-refresh"/></svg><span id="menuVersion"></span><span id="menuUpdDot" class="upd-dot inline" hidden></span></button>
   <div class="dlg-buttons"><button type="button" class="btn-ghost tappable" data-close data-i18n="common.close"></button></div>
 </dialog>
 
@@ -258,18 +242,10 @@
 
 <dialog id="exportDialog" class="dlg">
   <h2 data-i18n="exp.title"></h2>
-  <label><span data-i18n="exp.scope"></span>
-    <select id="expScope">
-      <option value="all" data-i18n="exp.scope.all"></option>
-      <option value="filtered" data-i18n="exp.scope.filtered"></option>
-      <option value="mine" data-i18n="exp.scope.mine"></option>
-    </select>
-  </label>
   <p id="expCount" class="muted small"></p>
   <div class="export-list">
     <button type="button" data-fmt="kml" class="tappable"><strong>KML</strong><span data-i18n="exp.kml"></span></button>
-    <button type="button" data-fmt="geojson" class="tappable"><strong>GeoJSON</strong><span data-i18n="exp.geojson"></span></button>
-    <button type="button" data-fmt="csv" class="tappable"><strong>CSV</strong><span data-i18n="exp.csv"></span></button>
+    <button type="button" data-fmt="csv" class="tappable"><strong>Excel (CSV)</strong><span data-i18n="exp.csv"></span></button>
     <button type="button" data-fmt="zip" class="tappable"><strong>ZIP</strong><span data-i18n="exp.zip"></span></button>
   </div>
   <div class="dlg-buttons"><button type="button" class="btn-ghost tappable" data-close data-i18n="common.close"></button></div>
@@ -284,32 +260,6 @@
   <div class="dlg-buttons">
     <button type="button" class="btn-ghost tappable" data-close data-i18n="common.cancel"></button>
     <button type="button" id="impOk" class="btn-primary tappable" disabled data-i18n="imp.ok"></button>
-  </div>
-</dialog>
-
-<dialog id="settingsDialog" class="dlg">
-  <h2 data-i18n="set.title"></h2>
-  <label><span data-i18n="set.lang"></span>
-    <select id="sLang"><option value="pt">Português</option><option value="en">English</option><option value="ja">日本語</option></select></label>
-  <label><span data-i18n="set.maxAcc"></span>
-    <select id="sMaxAcc"><option>5</option><option>8</option><option>10</option><option>15</option><option>20</option><option>30</option></select>
-    <small class="muted" data-i18n="set.maxAcc.d"></small></label>
-  <label><span data-i18n="set.mapMode"></span>
-    <select id="sMapMode">
-      <option value="auto" data-i18n="set.mapMode.auto"></option>
-      <option value="google" data-i18n="set.mapMode.google"></option>
-      <option value="simple" data-i18n="set.mapMode.simple"></option>
-    </select></label>
-  <label><span data-i18n="set.mapType"></span>
-    <select id="sMapType">
-      <option value="hybrid" data-i18n="set.mapType.hybrid"></option>
-      <option value="satellite" data-i18n="set.mapType.satellite"></option>
-      <option value="roadmap" data-i18n="set.mapType.roadmap"></option>
-      <option value="terrain" data-i18n="set.mapType.terrain"></option>
-    </select></label>
-  <div class="dlg-buttons">
-    <button type="button" class="btn-ghost tappable" data-close data-i18n="common.cancel"></button>
-    <button type="button" id="sOk" class="btn-primary tappable" data-i18n="common.save"></button>
   </div>
 </dialog>
 

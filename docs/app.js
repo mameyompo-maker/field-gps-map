@@ -7,7 +7,7 @@
  *   lib/map-simple.js 圏外用の簡易地図(方眼)
  *   lib/store-*.js    保存先(本番=Firestore、試用=この端末だけ)。写真もここ
  *   lib/photos.js     写真の縮小
- *   lib/export.js     KML/GeoJSON/CSV/ZIP の書き出しと読み込み
+ *   lib/export.js     KML/GeoJSON/CSV/ZIP の書き出しと読み込み(使うときだけ読み込む)
  * ここは画面の出し分けと、ボタンとそれらの配線、更新・圏外の見張りを受け持つ。
  */
 import { t, initLang, setLang, getLang, applyI18n, helpHtml, categoryKeyFromLabel, locale } from './lib/i18n.js';
@@ -16,11 +16,12 @@ import { startGps, onGps, lastFix, isFresh, bestRecentFix, keepScreenOn, gpsStat
 import { createRecorder } from './lib/recorder.js';
 import { createSimpleMap } from './lib/map-simple.js';
 import { getSettings, saveSettings } from './lib/settings.js';
-import { CATEGORIES, catColor, defaultCategory } from './lib/categories.js';
+import { catColor, defaultCategory, categoriesFor } from './lib/categories.js';
 import { preparePhoto, dataUrlToFile, MAX_PHOTOS } from './lib/photos.js';
-import { toKML, toGeoJSON, toCSV, toZip, download, stamp, parseKML, parseGeoJSON, readKmz, measure } from './lib/export.js';
+// 書き出し・読み込みは使うときだけ読み込む(起動を軽くする)
+const loadExport = () => import('./lib/export.js');
 
-const VERSION = '1.1.1';
+const VERSION = '1.2.0';
 const $ = (id) => document.getElementById(id);
 const DEMO_KEY = 'fgm.demo';
 const VIEW_KEY = 'fgm.view';
@@ -46,7 +47,7 @@ let stagedPhotos = [];      // 保存ダイアログで選んだ、まだ保存�
 let photoTarget = null;     // 'save' | 記録の id(詳細から追加)
 let saveCategory = 'field';
 let prevPending = 0;
-const filter = { q: '', kind: '', mine: false, group: '', sort: 'new' };
+const filter = { q: '', group: '' };
 const rec = createRecorder();
 
 // ================================================================ 起動
@@ -122,7 +123,7 @@ async function startMain(u, mode) {
   }
   showScreen('main');
   $('menuName').textContent = u.displayName || '';
-  $('menuVersion').textContent = `Field GPS Map v${VERSION}`;
+  renderMenuVersion();
   renderMenuUser();
 
   // 端末の保存領域を「消さないで」と頼む(容量が逼迫しても未送信の記録・写真が消されないように)
@@ -166,6 +167,10 @@ async function startMain(u, mode) {
 
   if (!safeGet('fgm.helpSeen')) { safeSet('fgm.helpSeen', '1'); openHelp(); }
   startUpdateWatch();
+}
+
+function renderMenuVersion() {
+  $('menuVersion').textContent = `v${VERSION} · ${t('menu.update')}`;
 }
 
 function renderMenuUser() {
@@ -287,7 +292,7 @@ function onGpsUpdate({ fix, status }) {
   if (fix && mapCtl) mapCtl.setMyLocation(fix);
   // GPSで記録している間は、現在地が画面の外へ出ないよう地図を追いかける。
   // 利用者が地図を動かした直後(20秒)は追わない(確かめたい場所を見ているので)。
-  if (fix && rec.active && GPS_METHODS.includes(rec.state.method) && Date.now() > followUntil && mapCtl) {
+  if (fix && rec.active && rec.state.method !== 'tap' && Date.now() > followUntil && mapCtl) {
     mapCtl.centerOn({ lat: fix.lat, lng: fix.lng });
   }
   if (rec.active) renderRecStats();
@@ -305,63 +310,44 @@ function gpsHelp() {
 
 // ================================================================ 記録
 
-const GPS_METHODS = ['corners', 'gps'];
 const GOAL_POINTS = 10;     // 1つの圃場の点はこのくらいまで(Kazさん 2026-10-21)
 
-function methodsFor(kind) {
-  if (kind === 'point') return ['gps', 'tap'];
-  return ['corners', 'tap'];
-}
+/** 種類ごとの「GPSで打つ」方式の名前(保存データの method に入る)。 */
+function gpsMethodFor(kind) { return kind === 'point' ? 'gps' : 'corners'; }
+
+function gpsBlocked() { return ['denied', 'unsupported', 'unavailable'].includes(gpsStatus()); }
 
 function openNewSheet() {
   closeSheets();
-  $('newKinds').hidden = false;
-  $('newMethods').hidden = true;
-  $('newSheetTitle').textContent = t('new.title');
   $('newSheet').hidden = false;
 }
 
-function chooseKind(kind) {
-  const box = $('newMethods');
-  box.innerHTML = '';
-  methodsFor(kind).forEach((m, i) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'tappable';
-    const icon = m === 'corners' ? 'i-walk' : m === 'tap' ? 'i-tap' : 'i-target';
-    b.innerHTML = `<span class="choice-ic"><svg class="ic"><use href="#${icon}"/></svg></span><strong></strong><span></span>`;
-    b.querySelector('strong').textContent = t('method.' + m);
-    if (i === 0) {
-      const tag = document.createElement('span');
-      tag.className = 'rec-tag';
-      tag.textContent = t('new.recommended');
-      b.querySelector('strong').appendChild(tag);
-    }
-    b.querySelector('span:last-child').textContent = t('method.' + m + '.d.' + kind);
-    b.addEventListener('click', () => startRecording(kind, m));
-    box.appendChild(b);
-  });
-  $('newKinds').hidden = true;
-  box.hidden = false;
-  $('newSheetTitle').textContent = t('new.how', { kind: t('kind.' + kind) });
-}
-
-function startRecording(kind, method) {
-  if (GPS_METHODS.includes(method) && ['denied', 'unsupported', 'unavailable'].includes(gpsStatus())) {
-    toast(t('gps.denied'), 6000);
-    return;
-  }
-  rec.start(kind, method);
+/** 種類を選んだら、すぐ GPS で記録を始める(位置情報が使えなければ地図をタップで)。 */
+function startRecording(kind) {
+  const blocked = gpsBlocked();
+  rec.start(kind, blocked ? 'tap' : gpsMethodFor(kind));
   closeSheets();
   showRecPanel();
+  if (blocked) toast(t('gps.denied'), 6000);
   const fx = lastFix();
   if (fx && isFresh(fx, 60000)) mapCtl.centerOn(fx, 19);
+}
+
+/** 記録の途中で「歩いて」と「地図をタップ」を切り替える。 */
+function setRecMode(mode) {
+  const st = rec.state;
+  if (!st) return;
+  if (mode === 'gps' && gpsBlocked()) { toast(t('gps.denied'), 6000); return; }
+  rec.setMethod(mode === 'tap' ? 'tap' : gpsMethodFor(st.kind));
+  keepScreenOn(mode !== 'tap');
+  mapCtl.setFeaturesClickable(mode !== 'tap');
+  if (mode === 'gps') followUntil = 0;
 }
 
 function showRecPanel() {
   const st = rec.state;
   window.__fgmRecording = true;
-  keepScreenOn(GPS_METHODS.includes(st.method));
+  keepScreenOn(st.method !== 'tap');
   $('fabNew').hidden = true;
   $('recPanel').hidden = false;
   $('mainScreen').classList.add('recording');
@@ -398,10 +384,12 @@ function renderRec() {
   const st = rec.state;
   if (!st) return;
   $('recKindIcon').setAttribute('href', st.kind === 'polygon' ? '#i-polygon' : st.kind === 'line' ? '#i-line' : '#i-point');
-  $('recTitle').textContent = `${t('kind.' + st.kind)} · ${t('method.' + st.method)}`;
+  $('recTitle').textContent = t('kind.' + st.kind);
+  const tap = st.method === 'tap';
+  $('recMode').querySelectorAll('button').forEach((b) => b.classList.toggle('on', (b.dataset.mode === 'tap') === tap));
   $('recHint').textContent = t(`rec.hint.${st.method}.${st.kind}`);
   const mark = $('btnRecMark');
-  mark.hidden = !GPS_METHODS.includes(st.method);
+  mark.hidden = st.method === 'tap';
   $('recMarkIcon').setAttribute('href', st.kind === 'polygon' ? '#i-corner' : '#i-point');
   $('btnRecMarkText').textContent = markLabel(st);
   $('btnRecUndo').hidden = st.kind === 'point';
@@ -428,11 +416,11 @@ function renderRecStats() {
   const fresh = fx && isFresh(fx);
   $('stAcc').textContent = fresh ? `±${Math.round(fx.acc)} m` : '—';
   // GPS の位置が無いうちは、押しても入らないことが見て分かるようにする
-  $('btnRecMark').classList.toggle('waiting', GPS_METHODS.includes(st.method) && !fresh);
+  $('btnRecMark').classList.toggle('waiting', st.method !== 'tap' && !fresh);
 
   const warns = [];
   const set = getSettings();
-  if (GPS_METHODS.includes(st.method) && fresh && fx.acc > set.maxAcc) warns.push(t('rec.warn.lowAcc', { acc: Math.round(fx.acc) }));
+  if (st.method !== 'tap' && fresh && fx.acc > set.maxAcc) warns.push(t('rec.warn.lowAcc', { acc: Math.round(fx.acc) }));
   if (st.kind === 'polygon' && s.selfIntersects) warns.push(t('rec.warn.cross'));
   if (st.kind !== 'point' && s.n > GOAL_POINTS + 2) warns.push(t('rec.warn.many', { n: s.n }));
   const w = $('recWarn');
@@ -482,7 +470,7 @@ async function cancelRecording() {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
   const st = rec.state;
-  if (st && GPS_METHODS.includes(st.method) && st.kind !== 'point' && hiddenAt && Date.now() - hiddenAt > 5000) {
+  if (st && st.method !== 'tap' && st.kind !== 'point' && hiddenAt && Date.now() - hiddenAt > 5000) {
     toast(t('rec.wasHidden'), 8000);
   }
   hiddenAt = 0;
@@ -496,7 +484,8 @@ let saveTarget = null;   // null = 新規(記録中の図形) / 図形のid = �
 function renderCategoryChips() {
   const box = $('fCatChips');
   box.innerHTML = '';
-  CATEGORIES.forEach((c) => {
+  const kind = saveTarget ? (features.find((x) => x.id === saveTarget) || {}).kind : rec.state && rec.state.kind;
+  categoriesFor(kind, saveCategory).forEach((c) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'chip-sel tappable' + (c.key === saveCategory ? ' on' : '');
@@ -539,7 +528,7 @@ function openSaveDialog(editId) {
     $('saveTitle').textContent = t('save.title');
     $('saveSummary').textContent = summaryText(st.kind, s.areaM2, s.lengthM, st.vertices, lang);
     const warns = [];
-    if (s.tapCount && st.method !== 'tap') warns.push(t('save.warn.tap', { n: s.tapCount }));
+    if (s.tapCount && s.tapCount < s.n) warns.push(t('save.warn.tap', { n: s.tapCount }));
     if (st.kind === 'polygon' && s.selfIntersects) warns.push(t('rec.warn.cross'));
     if (warns.length) { warn.hidden = false; warn.textContent = warns.join(' '); }
     $('fName').value = '';
@@ -579,7 +568,7 @@ function onSaveSubmit(e) {
   const st = rec.state;
   const s = rec.stats();
   const docData = {
-    kind: st.kind, method: st.method, name, category, group, notes,
+    kind: st.kind, method: s.tapCount === s.n ? 'tap' : gpsMethodFor(st.kind), name, category, group, notes,
     vertices: st.vertices.map((v) => ({ lat: v.lat, lng: v.lng, acc: v.acc == null ? null : v.acc, t: v.t || 0, src: v.src || 'gps' })),
     areaM2: s.areaM2 == null ? null : Math.round(s.areaM2 * 10) / 10,
     lengthM: s.lengthM == null ? null : Math.round(s.lengthM * 10) / 10,
@@ -737,9 +726,7 @@ async function removeViewerPhoto() {
 
 function applyFilter(list) {
   const q = filter.q.trim().toLowerCase();
-  let out = list.filter((f) => {
-    if (filter.kind && f.kind !== filter.kind) return false;
-    if (filter.mine && (!f.createdBy || f.createdBy.uid !== user.uid)) return false;
+  const out = list.filter((f) => {
     if (filter.group && (f.group || '') !== filter.group) return false;
     if (q) {
       const hay = `${f.name || ''} ${f.group || ''} ${f.notes || ''} ${(f.createdBy && f.createdBy.name) || ''} ${t('cat.' + (f.category || 'other'))}`.toLowerCase();
@@ -747,10 +734,7 @@ function applyFilter(list) {
     }
     return true;
   });
-  if (filter.sort === 'name') out = out.sort((a, b) => (a.name || '').localeCompare(b.name || '', undefined, { numeric: true }));
-  else if (filter.sort === 'area') out = out.sort((a, b) => (b.areaM2 || b.lengthM || 0) - (a.areaM2 || a.lengthM || 0));
-  else out = out.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
-  return out;
+  return out.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
 }
 
 function visibleFeatures() { return applyFilter(features); }
@@ -768,20 +752,25 @@ function refreshAll() {
   if ($('menuDialog').open) renderStatus();
 }
 
-function renderGroupSelect() {
-  const sel = $('listGroup');
-  const cur = filter.group;
-  sel.innerHTML = '';
-  const all = document.createElement('option');
-  all.value = '';
-  all.textContent = t('list.allGroups');
-  sel.appendChild(all);
-  groupsList().forEach((g) => { const o = document.createElement('option'); o.value = g; o.textContent = g; sel.appendChild(o); });
-  sel.value = groupsList().includes(cur) ? cur : '';
+/** グループの絞り込み(チップ)。グループが1つも無ければ出さない。 */
+function renderGroupChips() {
+  const box = $('listGroups');
+  const groups = groupsList();
+  if (filter.group && !groups.includes(filter.group)) filter.group = '';
+  box.hidden = !groups.length;
+  box.innerHTML = '';
+  ['', ...groups].forEach((g) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip-sel tappable' + (g === filter.group ? ' on' : '');
+    b.textContent = g || t('list.all');
+    b.addEventListener('click', () => { filter.group = g; refreshAll(); });
+    box.appendChild(b);
+  });
 }
 
 function renderList() {
-  renderGroupSelect();
+  renderGroupChips();
   const lang = getLang();
   const vis = visibleFeatures();
   const ul = $('listItems');
@@ -879,8 +868,7 @@ function renderDetail(id) {
   $('dSub').textContent = `${t('kind.' + f.kind)} · ${t('cat.' + (f.category || 'other'))}${f.group ? ' · ' + f.group : ''}`;
   const stats = [];
   if (f.kind === 'polygon') {
-    stats.push([t('rec.area'), geo.fmtHa(f.areaM2, lang)]);
-    stats.push(['m²', Math.round(f.areaM2 || 0).toLocaleString(locale())]);
+    stats.push([t('rec.area'), geo.fmtHa(f.areaM2, lang), `${Math.round(f.areaM2 || 0).toLocaleString(locale())} m²`]);
     stats.push([t('rec.perimeter'), geo.fmtLength(f.lengthM, lang)]);
   } else if (f.kind === 'line') {
     stats.push([t('rec.length'), geo.fmtLength(f.lengthM, lang)]);
@@ -889,26 +877,26 @@ function renderDetail(id) {
     stats.push([t('rec.coords'), `${v.lat.toFixed(6)}, ${v.lng.toFixed(6)}`]);
   }
   $('dStats').innerHTML = '';
-  stats.forEach(([k, v]) => {
+  stats.forEach(([k, v, sub]) => {
     const d = document.createElement('div');
-    d.innerHTML = '<span class="stat-label"></span><strong></strong>';
+    d.innerHTML = '<span class="stat-label"></span><strong></strong><small></small>';
     d.querySelector('span').textContent = k;
     d.querySelector('strong').textContent = v;
+    d.querySelector('small').textContent = sub || '';
     $('dStats').appendChild(d);
   });
+  const pts = [String((f.vertices || []).length)];
+  if (f.accMedian != null) pts.push(`GPS ±${Math.round(f.accMedian)} m`);
+  if (f.tapCount) pts.push(t('d.tappedN', { n: f.tapCount }));
+  if (f.method === 'import') pts.push(t('method.import'));
+  const who = (f.createdBy && (f.createdBy.name || f.createdBy.email)) || '';
+  const when = f.createdAtMs ? new Date(f.createdAtMs).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }) : '';
   const meta = [
-    [t('d.by'), (f.createdBy && (f.createdBy.name || f.createdBy.email)) || '—'],
-    [t('d.date'), f.createdAtMs ? new Date(f.createdAtMs).toLocaleString(locale()) : '—'],
-    [t('d.method'), t('method.' + (f.method || 'gps'))],
-    [t('rec.vertices'), String((f.vertices || []).length)],
-    [t('d.accuracy'), f.accMedian != null ? t('d.accText', { med: Math.round(f.accMedian), max: Math.round(f.accMax || f.accMedian) }) : '—']
+    [t('d.by'), [who, when].filter(Boolean).join(' · ') || '-'],
+    [t('rec.vertices'), pts.join(' · ')]
   ];
-  if (f.tapCount) meta.push([t('d.tapped'), String(f.tapCount)]);
   if (f.notes) meta.push([t('save.notes'), f.notes]);
-  if (f.updatedBy && f.updatedAtMs && f.createdBy && f.updatedBy.uid !== f.createdBy.uid) {
-    meta.push([t('d.editedBy'), f.updatedBy.name || f.updatedBy.email]);
-  }
-  meta.push([t('d.sync'), f._pending ? t('d.sync.pending') : store.mode === 'local' ? t('d.sync.demo') : t('d.sync.ok')]);
+  if (f._pending) meta.push([t('d.sync'), t('d.sync.pending')]);
   const dl = $('dMeta');
   dl.innerHTML = '';
   meta.forEach(([k, v]) => {
@@ -955,6 +943,7 @@ function safeFileName(s) {
 async function shareKml() {
   const f = features.find((x) => x.id === openDetailId);
   if (!f) return;
+  const { toKML, download } = await loadExport();
   const kml = toKML([f], { title: f.name, catName: (k) => t('cat.' + k) });
   const name = `${safeFileName(f.name)}.kml`;
   const file = new File([kml], name, { type: 'application/vnd.google-earth.kml+xml' });
@@ -977,25 +966,22 @@ async function archiveFeature() {
 
 // ================================================================ 書き出し・読み込み
 
-function exportScope() {
-  const scope = $('expScope').value;
-  if (scope === 'filtered') return visibleFeatures();
-  if (scope === 'mine') return features.filter((f) => f.createdBy && f.createdBy.uid === user.uid);
+function exportList() {
   return [...features].sort((a, b) => (a.createdAtMs || 0) - (b.createdAtMs || 0));
 }
 
 function openExport() {
-  $('expCount').textContent = t('exp.count', { n: exportScope().length });
+  $('expCount').textContent = t('exp.count', { n: features.length });
   $('exportDialog').showModal();
 }
 
 async function doExport(fmt) {
-  const list = exportScope();
+  const list = exportList();
   if (!list.length) { toast(t('exp.none')); return; }
+  const { toKML, toCSV, toZip, download, stamp } = await loadExport();
   const base = `field_gps_map_${stamp()}`;
   const opts = { title: `Field GPS Map ${stamp()}`, catName: (k) => t('cat.' + k) };
   if (fmt === 'kml') download(toKML(list, opts), `${base}.kml`, 'application/vnd.google-earth.kml+xml');
-  else if (fmt === 'geojson') download(toGeoJSON(list), `${base}.geojson`, 'application/geo+json');
   else if (fmt === 'csv') download(toCSV(list, opts), `${base}.csv`, 'text/csv;charset=utf-8');
   else {
     toast(t('exp.busy'), 20000);
@@ -1019,6 +1005,7 @@ async function onImportFile() {
   $('impOk').disabled = true;
   if (!file) { $('impPreview').textContent = ''; return; }
   try {
+    const { parseKML, parseGeoJSON, readKmz } = await loadExport();
     let items;
     if (/\.kmz$/i.test(file.name)) items = parseKML(await readKmz(file));
     else {
@@ -1035,8 +1022,9 @@ async function onImportFile() {
   }
 }
 
-function doImport() {
+async function doImport() {
   if (!importItems.length) return;
+  const { measure } = await loadExport();
   const group = $('impGroup').value.trim();
   const now = Date.now();
   const all = [];
@@ -1187,33 +1175,6 @@ function maybeCheckOnReturn() {
 
 // ================================================================ 設定・言語・ヘルプ・メニュー
 
-function openSettings() {
-  const s = getSettings();
-  $('sLang').value = getLang();
-  $('sMaxAcc').value = String(s.maxAcc);
-  $('sMapMode').value = s.mapMode;
-  $('sMapType').value = s.mapType;
-  $('settingsDialog').showModal();
-}
-
-function saveSettingsFromDialog() {
-  const prev = getSettings();
-  const next = saveSettings({
-    lang: $('sLang').value,
-    maxAcc: Number($('sMaxAcc').value),
-    mapMode: $('sMapMode').value,
-    mapType: $('sMapType').value
-  });
-  $('settingsDialog').close();
-  if (next.lang !== getLang()) changeLang(next.lang);
-  if (next.mapType !== prev.mapType && googleCtl) googleCtl.setMapType(next.mapType);
-  if (next.mapMode !== prev.mapMode) {
-    if (next.mapMode === 'simple') useSimple();
-    else initMap();
-  }
-  toast(t('set.saved'));
-}
-
 function changeLang(lang) {
   setLang(lang);
   saveSettings({ lang });
@@ -1222,6 +1183,7 @@ function changeLang(lang) {
   if (rec.active) renderRec();
   if (mapCtl) useMap(mapCtl);
   renderMenuUser();
+  renderMenuVersion();
   if (openDetailId) renderDetailPhotos();
   updateSyncChip();
   document.querySelectorAll('.lang-switch button, .lang-list button').forEach((b) => b.classList.toggle('on', b.dataset.lang === lang));
@@ -1381,7 +1343,8 @@ function wireStatic() {
   $('btnSignOutDenied').addEventListener('click', () => authApi && authApi.signOutUser());
 
   $('fabNew').addEventListener('click', openNewSheet);
-  document.querySelectorAll('#newKinds .choice').forEach((b) => b.addEventListener('click', () => chooseKind(b.dataset.kind)));
+  document.querySelectorAll('#newKinds .choice').forEach((b) => b.addEventListener('click', () => startRecording(b.dataset.kind)));
+  $('recMode').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => setRecMode(b.dataset.mode)));
   document.querySelectorAll('.sheet [data-close]').forEach((b) => b.addEventListener('click', () => {
     const sheet = b.closest('.sheet');
     if (sheet.id === 'detailSheet') closeDetail();
@@ -1428,41 +1391,23 @@ function wireStatic() {
   $('menuDialog').querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => {
     $('menuDialog').close();
     const act = b.dataset.act;
-    if (act === 'list') openList();
-    else if (act === 'export') openExport();
+    if (act === 'export') openExport();
     else if (act === 'import') { fillGroupDatalist(); $('importDialog').showModal(); }
-    else if (act === 'settings') openSettings();
     else if (act === 'help') openHelp();
     else if (act === 'lang') openLangDialog();
-    else if (act === 'sync') syncNow();
-    else if (act === 'update') checkForUpdate({ silent: false });
     else if (act === 'signout') signOutOrLeave();
   }));
 
+  $('menuUpdate').addEventListener('click', () => { $('menuDialog').close(); checkForUpdate({ silent: false }); });
   $('listSearch').addEventListener('input', (e) => { filter.q = e.target.value; refreshAll(); });
-  $('listKind').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
-    filter.kind = b.dataset.k;
-    $('listKind').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
-    refreshAll();
-  }));
-  $('listMine').addEventListener('change', (e) => { filter.mine = e.target.checked; refreshAll(); });
-  $('listGroup').addEventListener('change', (e) => { filter.group = e.target.value; refreshAll(); });
-  $('listSort').addEventListener('change', (e) => { filter.sort = e.target.value; refreshAll(); });
-
-  $('dZoom').addEventListener('click', () => {
-    const f = features.find((x) => x.id === openDetailId);
-    if (f) mapCtl.fitPoints(f.vertices);
-  });
   $('dShare').addEventListener('click', shareFeature);
   $('dShareKml').addEventListener('click', shareKml);
   $('dEdit').addEventListener('click', () => openDetailId && openSaveDialog(openDetailId));
   $('dArchive').addEventListener('click', archiveFeature);
 
-  $('expScope').addEventListener('change', () => { $('expCount').textContent = t('exp.count', { n: exportScope().length }); });
   $('exportDialog').querySelectorAll('[data-fmt]').forEach((b) => b.addEventListener('click', () => doExport(b.dataset.fmt)));
   $('impFile').addEventListener('change', onImportFile);
   $('impOk').addEventListener('click', doImport);
-  $('sOk').addEventListener('click', saveSettingsFromDialog);
 }
 
 // 自動テスト用の入口(画面の外から状態を確かめる。本番の動作には関係しない)

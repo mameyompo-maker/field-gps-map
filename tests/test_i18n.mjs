@@ -19,9 +19,9 @@ files.forEach((f) => {
 // 動的に組み立てるキー
 ['field', 'block', 'nursery', 'hedge', 'water', 'road', 'building', 'tree', 'other'].forEach((c) => used.add('cat.' + c));
 ['polygon', 'line', 'point'].forEach((k) => used.add('kind.' + k));
-['walk', 'corners', 'tap', 'gps', 'import'].forEach((m) => used.add('method.' + m));
+['import'].forEach((m) => used.add('method.' + m));
 [['corners', 'polygon'], ['corners', 'line'], ['tap', 'polygon'], ['tap', 'line'], ['gps', 'point'], ['tap', 'point']]
-  .forEach(([m, k]) => { used.add(`method.${m}.d.${k}`); used.add(`rec.hint.${m}.${k}`); });
+  .forEach(([m, k]) => used.add(`rec.hint.${m}.${k}`));
 [...used].filter((k) => !base.includes(k)).forEach((k) => { ng++; console.log('辞書に無い:', k); });
 const unused = base.filter((k) => !used.has(k) && !k.endsWith('.d') && !/^kind\.\w+\.d$/.test(k));
 if (unused.length) console.log('(参考)使われていないキー:', unused.join(', '));
