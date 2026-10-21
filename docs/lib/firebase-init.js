@@ -17,7 +17,7 @@ const [
   { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged },
   {
     initializeFirestore, persistentLocalCache, persistentMultipleTabManager,
-    doc, getDoc, collection, setDoc, updateDoc, onSnapshot, query, where, serverTimestamp,
+    doc, getDoc, getDocs, collection, setDoc, updateDoc, onSnapshot, query, where, serverTimestamp,
     waitForPendingWrites
   }
 ] = await Promise.all([
@@ -43,5 +43,5 @@ const db = initializeFirestore(app, {
 export {
   cfg, app, auth, db,
   GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged,
-  doc, getDoc, collection, setDoc, updateDoc, onSnapshot, query, where, serverTimestamp, waitForPendingWrites
+  doc, getDoc, getDocs, collection, setDoc, updateDoc, onSnapshot, query, where, serverTimestamp, waitForPendingWrites
 };

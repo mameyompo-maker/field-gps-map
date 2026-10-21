@@ -1,17 +1,24 @@
-/* field_gps_map — Service Worker(field_visit_map / jatlog_offline と同じ3つのルール)。
+/* field_gps_map — Service Worker(jatlog_offline / field_visit_map と同じ考え方)。
  *
- *   1. アプリ本体のファイルはキャッシュから返す(圏外でも開ける)。裏で更新する。
+ *   1. アプリ本体のファイルはキャッシュから返す(圏外でも開ける)。裏でネットから取り直して
+ *      キャッシュを新しくしておく。
  *   2. Firebase SDK(gstatic)もキャッシュする。無いと圏外で起動すらできない。
  *      URL に版数が入っていて中身が変わらないので固定してよい。
  *   3. それ以外は一切キャッシュしない。特に Google マップのタイル・衛星写真
  *      (maps.googleapis.com / maps.gstatic.com / khms*.google.com)は、規約で
  *      オフライン保存が禁じられているので絶対に入れない。Firestore の通信も入れない
- *      (入れると圏外復帰後も古いデータのままになる)。
+ *      (入れると圏外復帰後も古いデータのままになる)。記録と写真の未送信分は
+ *      Firestore SDK が端末の IndexedDB に持っていて、電波が戻ると送る。
+ *
+ * 自動更新:新しい sw.js は skipWaiting() → clients.claim() で即座に有効になり、
+ *   ページ側(index.html)が controllerchange で1回だけ再読み込みする(記録中は待つ)。
+ *   インストール時は cache: 'reload' で取りに行く。GitHub Pages は 10 分の HTTP キャッシュを
+ *   付けるので、普通に取るとブラウザのキャッシュから「古い app.js」を拾うことがある。
  *
  * docs/ のファイルを1つでも変えたら CACHE の版数を必ず上げること。
  * 上げ忘れると、既に開いた端末が古い版を使い続ける(field_visit_map で実際に詰まった)。
  */
-const CACHE = 'field-gps-map-v1';
+const CACHE = 'field-gps-map-v2';
 
 const FILES = [
   './',
@@ -32,6 +39,7 @@ const FILES = [
   './lib/map-simple.js',
   './lib/export.js',
   './lib/zip.js',
+  './lib/photos.js',
   './lib/store-local.js',
   './lib/store-firestore.js',
   './lib/firebase-init.js',
@@ -61,7 +69,8 @@ function isCdnFile(url) {
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE).then(async (c) => {
-      await c.addAll(FILES).catch(() => {});
+      // 1つずつ入れる(addAll は1つ失敗すると全部やり直しになる)。HTTP キャッシュは通さない。
+      await Promise.allSettled(FILES.map((f) => c.add(new Request(f, { cache: 'reload' }))));
       await Promise.allSettled(CDN_FILES.map((u) => c.add(u)));
       await self.skipWaiting();
     }).catch(() => self.skipWaiting())
@@ -74,6 +83,27 @@ self.addEventListener('activate', (e) => {
       names.filter((n) => n !== CACHE).map((n) => caches.delete(n))
     )).then(() => self.clients.claim())
   );
+});
+
+/* ページからの問い合わせ:「圏外で使う準備ができているか」(メニューの表示用)。
+ * アプリ本体と Firebase SDK が全部キャッシュに入っていれば ready。足りなければ、
+ * 足りない分をこの場で取りに行く(電波があれば次に開いたときには揃っている)。 */
+self.addEventListener('message', (e) => {
+  const port = e.ports && e.ports[0];
+  if (!e.data || e.data.type !== 'status' || !port) return;
+  e.waitUntil((async () => {
+    const c = await caches.open(CACHE);
+    const missing = [];
+    for (const f of FILES) {
+      const hit = await c.match(new URL(f, self.location).href.replace(/\?.*$/, ''), { ignoreVary: true });
+      if (!hit) missing.push(f);
+    }
+    for (const u of CDN_FILES) if (!(await c.match(u))) missing.push(u);
+    port.postMessage({ ready: missing.length === 0, missing: missing.length, cache: CACHE });
+    if (missing.length) {
+      await Promise.allSettled(missing.map((f) => c.add(f.startsWith('http') ? f : new Request(f, { cache: 'reload' }))));
+    }
+  })());
 });
 
 self.addEventListener('fetch', (e) => {

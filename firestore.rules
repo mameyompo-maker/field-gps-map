@@ -96,6 +96,23 @@ service cloud.firestore {
         && request.resource.data.vertices is list
         && request.resource.data.vertices.size() <= 5000;
       allow delete: if false;
+
+      // 写真(1枚1文書。JPEG の data URL を Firestore に入れる。理由は docs/lib/photos.js)
+      //   - uploadedBy は本人。1文書の上限 1 MiB より小さいこと。
+      //   - 外すのは archived フラグだけ(物理削除はしない)。中身の書き換えは不可。
+      match /photos/{photoId} {
+        allow read: if isAllowed();
+        allow create: if isAllowed()
+          && isMe(request.resource.data.uploadedBy)
+          && request.resource.data.archived == false
+          && request.resource.data.data is string
+          && request.resource.data.data.size() < 1000000;
+        allow update: if isAllowed()
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['archived', 'archivedBy', 'archivedAt'])
+          && isMe(request.resource.data.archivedBy);
+        allow delete: if false;
+      }
     }
 
   }

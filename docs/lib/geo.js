@@ -164,7 +164,7 @@ export function pointInPolygon(p, pts) {
 
 export function fmtArea(m2, lang) {
   if (!Number.isFinite(m2)) return '';
-  const loc = lang === 'ja' ? 'ja-JP' : 'pt-PT';
+  const loc = lang === 'ja' ? 'ja-JP' : lang === 'en' ? 'en-GB' : 'pt-PT';
   if (m2 < 10000) {
     return `${Math.round(m2).toLocaleString(loc)} m² (${(m2 / 10000).toLocaleString(loc, { minimumFractionDigits: 3, maximumFractionDigits: 3 })} ha)`;
   }
@@ -173,14 +173,14 @@ export function fmtArea(m2, lang) {
 
 export function fmtHa(m2, lang) {
   if (!Number.isFinite(m2)) return '';
-  const loc = lang === 'ja' ? 'ja-JP' : 'pt-PT';
+  const loc = lang === 'ja' ? 'ja-JP' : lang === 'en' ? 'en-GB' : 'pt-PT';
   const d = m2 < 10000 ? 3 : 2;
   return `${(m2 / 10000).toLocaleString(loc, { minimumFractionDigits: d, maximumFractionDigits: d })} ha`;
 }
 
 export function fmtLength(m, lang) {
   if (!Number.isFinite(m)) return '';
-  const loc = lang === 'ja' ? 'ja-JP' : 'pt-PT';
+  const loc = lang === 'ja' ? 'ja-JP' : lang === 'en' ? 'en-GB' : 'pt-PT';
   if (m < 1000) return `${Math.round(m).toLocaleString(loc)} m`;
   return `${(m / 1000).toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} km`;
 }

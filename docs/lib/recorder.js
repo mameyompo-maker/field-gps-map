@@ -1,21 +1,21 @@
 /* field_gps_map — 記録中の図形(下書き)の状態管理。
  *
- * 画面(app.js)から切り離した純粋な状態機械。記録の方式は3つ:
- *   walk    … 歩くと自動で頂点を打つ。前の頂点から minDist(m)以上動き、誤差が
- *             maxAcc(m)以下の測位だけを採用する(誤差の大きい測位で形が尖るのを防ぐ)。
- *   corners … 角に立って「この角を記録」を押す。avgSeconds 秒の測位を平均して1頂点。
+ * 画面(app.js)から切り離した純粋な状態機械。記録の方式は2つ:
+ *   corners … 歩いて角に来たらボタンを押す。その瞬間の測位で1点(待ち時間なし)。
+ *             1つの圃場で 10 点以内に収めたい(Kazさん 2026-10-21)ので、
+ *             歩くだけで点が増える方式(旧 walk)はやめた。
  *   tap     … 地図を押して頂点を置く(行けない場所用)。GPSの実測ではないので src='tap'。
- * 地点(point)は gps(平均)か tap のどちらか。頂点は常に1つで、取り直すと置き換わる。
+ * 地点(point)は gps(現在地)か tap。頂点は常に1つで、取り直すと置き換わる。
  *
  * 下書きは変更のたびに localStorage へ保存する。電池切れ・誤ってタブを閉じた・
  * アプリの更新で再読み込みされた、のどれでも、開き直せば続きから記録できる。
  */
-import { distance, polygonArea, pathLength, selfIntersects } from './geo.js';
+import { polygonArea, pathLength, selfIntersects } from './geo.js';
 
 const DRAFT_KEY = 'fgm.draft';
 
 export function createRecorder() {
-  let st = null;              // { kind, method, vertices, paused, startedAt, rejected, gapCount }
+  let st = null;              // { kind, method, vertices, startedAt }
   const listeners = new Set();
 
   const save = () => {
@@ -39,19 +39,22 @@ export function createRecorder() {
       } catch { /* 壊れていたら無視 */ }
       return null;
     },
-    resume(draft) { st = draft; st.paused = st.method === 'walk' ? true : st.paused; emit(); },
+    resume(draft) {
+      // 旧版の「外周を歩く」の下書きは、角を打つ方式の続きとして再開する
+      st = { kind: draft.kind, method: draft.method === 'walk' ? 'corners' : draft.method,
+        vertices: draft.vertices, startedAt: draft.startedAt || Date.now() };
+      emit();
+    },
     discardDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch { /* 無視 */ } },
 
     start(kind, method) {
-      st = { kind, method, vertices: [], paused: false, startedAt: Date.now(), rejected: 0, gapCount: 0, lastFixT: 0 };
+      st = { kind, method, vertices: [], startedAt: Date.now() };
       emit();
     },
 
     clear() { st = null; emit(); },
 
-    setPaused(p) { if (!st) return; st.paused = p; if (!p) st.lastFixT = 0; emit(); },
-
-    /** 頂点を足す(角の平均・地図のタップ)。地点は置き換え。 */
+    /** 頂点を足す(角・地図のタップ)。地点は置き換え。 */
     addVertex(v) {
       if (!st) return;
       const vv = {
@@ -60,7 +63,6 @@ export function createRecorder() {
         t: v.t || Date.now(),
         src: v.src || 'gps'
       };
-      if (v.n) vv.n = v.n;
       if (st.kind === 'point') st.vertices = [vv];
       else st.vertices.push(vv);
       emit();
@@ -70,26 +72,6 @@ export function createRecorder() {
       if (!st || !st.vertices.length) return;
       st.vertices.pop();
       emit();
-    },
-
-    /**
-     * 歩いて記録する方式で、新しい測位が来るたびに呼ぶ。
-     * 戻り値: 'added' | 'skip-acc' | 'skip-dist' | 'gap' | 'ignored'
-     */
-    onFix(fix, { maxAcc, minDist }) {
-      if (!st || st.method !== 'walk' || st.paused || !fix) return 'ignored';
-      if (fix.t <= (st.lastFixT || 0)) return 'ignored';
-      const prevT = st.lastFixT;
-      st.lastFixT = fix.t;
-      if (fix.acc > maxAcc) { st.rejected++; emit(); return 'skip-acc'; }
-      const last = st.vertices[st.vertices.length - 1];
-      // 30秒以上測位が途切れていた(画面が消えた・別アプリに切り替えた)なら抜けとして数える。
-      let gap = false;
-      if (last && prevT && fix.t - prevT > 30000) { st.gapCount++; gap = true; }
-      if (last && distance(last, fix) < minDist) { if (gap) emit(); return gap ? 'gap' : 'skip-dist'; }
-      st.vertices.push({ lat: fix.lat, lng: fix.lng, acc: Math.round(fix.acc * 10) / 10, t: fix.t, src: 'walk' });
-      emit();
-      return gap ? 'gap' : 'added';
     },
 
     stats() {
@@ -103,7 +85,6 @@ export function createRecorder() {
         accMedian: accs.length ? accs[Math.floor(accs.length / 2)] : null,
         accMax: accs.length ? accs[accs.length - 1] : null,
         tapCount: v.filter((x) => x.src === 'tap').length,
-        closingGapM: st.kind === 'polygon' && v.length > 2 ? distance(v[v.length - 1], v[0]) : null,
         selfIntersects: st.kind === 'polygon' ? selfIntersects(v) : false
       };
     },

@@ -54,6 +54,7 @@ export function toKML(features, { title = 'Field GPS Map', catName = (k) => k } 
       accuracy_median_m: f.accMedian != null ? f.accMedian : '',
       recorded_by: (f.createdBy && (f.createdBy.name || f.createdBy.email)) || '',
       recorded_at: iso(f.createdAtMs || f.clientCreatedAt),
+      photos: f.photoCount || 0,
       notes: f.notes || '',
       id: f.id
     };
@@ -90,6 +91,7 @@ export function toGeoJSON(features) {
           recorded_by: (f.createdBy && f.createdBy.email) || '',
           recorded_by_name: (f.createdBy && f.createdBy.name) || '',
           recorded_at: iso(f.createdAtMs || f.clientCreatedAt),
+          photos: f.photoCount || 0,
           notes: f.notes || ''
         }
       };
@@ -108,7 +110,7 @@ function wkt(f) {
 
 export function toCSV(features, { catName = (k) => k } = {}) {
   const head = ['id', 'name', 'kind', 'category', 'group', 'area_ha', 'area_m2', 'length_m', 'center_lat', 'center_lng',
-    'n_vertices', 'accuracy_median_m', 'accuracy_max_m', 'method', 'recorded_by', 'recorded_by_email', 'recorded_at', 'notes', 'wkt'];
+    'n_vertices', 'accuracy_median_m', 'accuracy_max_m', 'method', 'recorded_by', 'recorded_by_email', 'recorded_at', 'photos', 'notes', 'wkt'];
   const q = (s) => {
     const t = String(s == null ? '' : s);
     return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
@@ -122,7 +124,7 @@ export function toCSV(features, { catName = (k) => k } = {}) {
       c.lat != null ? c.lat.toFixed(7) : '', c.lng != null ? c.lng.toFixed(7) : '',
       (f.vertices || []).length, f.accMedian, f.accMax, f.method,
       f.createdBy && f.createdBy.name, f.createdBy && f.createdBy.email,
-      iso(f.createdAtMs || f.clientCreatedAt), f.notes, wkt(f)
+      iso(f.createdAtMs || f.clientCreatedAt), f.photoCount || 0, f.notes, wkt(f)
     ].map(q).join(',');
   });
   return '﻿' + [head.join(','), ...rows].join('\r\n') + '\r\n';
@@ -140,12 +142,14 @@ export function download(content, filename, type) {
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
-export async function toZip(features, opts, readme) {
+/** photos: [{ name: 'photos/xxx.jpg', file: Blob }](無ければ空配列) */
+export async function toZip(features, opts, readme, photos = []) {
   const zip = createZip();
   await zip.add('field_gps_map.kml', toKML(features, opts));
   await zip.add('field_gps_map.geojson', toGeoJSON(features));
   await zip.add('field_gps_map.csv', toCSV(features, opts));
   await zip.add('README.txt', readme);
+  for (const p of photos) await zip.add(p.name, p.file);
   return zip.finish();
 }
 

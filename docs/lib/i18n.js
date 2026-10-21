@@ -1,16 +1,20 @@
-/* field_gps_map — 表示の言語(ポルトガル語 / 日本語)。
- * 現場のスタッフはポルトガル語、Kazさん・上司は日本語。端末の言語が日本語なら ja、
- * それ以外は pt で始まり、メニューからいつでも切り替えられる。
+/* field_gps_map — 表示の言語(ポルトガル語 / 英語 / 日本語)。
+ * 現場のスタッフはポルトガル語、上司・外部は英語、Kazさんは日本語。
+ * 端末の言語が ja なら日本語、en なら英語、それ以外はポルトガル語で始まり、
+ * メニューからいつでも切り替えられる。
  * モザンビークの表記(欧州ポルトガル語寄り: registo, ecrã, telemóvel)に合わせる。
  */
+export const LANGS = ['pt', 'en', 'ja'];
+export const LANG_NAMES = { pt: 'Português', en: 'English', ja: '日本語' };
+
 const DICT = {
   pt: {
     'common.back': 'Voltar', 'common.cancel': 'Cancelar', 'common.close': 'Fechar', 'common.ok': 'OK', 'common.save': 'Guardar',
 
-    'login.lead': 'Registe pontos, áreas e percursos com o GPS do telemóvel — mesmo sem rede — e partilhe com a equipa.',
+    'login.lead': 'Registe campos, linhas e pontos com o GPS do telemóvel — mesmo sem rede — e partilhe com a equipa.',
     'login.p1': 'Funciona sem rede: os registos ficam no telemóvel e são enviados sozinhos quando houver rede.',
-    'login.p2': 'Área em hectares calculada na hora (a andar à volta do campo ou marcando os cantos).',
-    'login.p3': 'Mapa do Google com imagem de satélite; exporta KML para Google Earth / My Maps, CSV para Excel.',
+    'login.p2': 'Ande à volta do campo e toque num botão em cada canto. A área em hectares aparece na hora.',
+    'login.p3': 'Fotos do campo, mapa de satélite do Google e exportação para Google Earth e Excel.',
     'login.google': 'Entrar com Google',
     'login.demo': 'Experimentar sem conta (só neste telemóvel)',
     'login.loading': 'A carregar…',
@@ -31,11 +35,24 @@ const DICT = {
 
     'menu.open': 'Menu', 'menu.list': 'Lista de registos', 'menu.export': 'Exportar (KML / CSV / GeoJSON)',
     'menu.import': 'Importar KML / GeoJSON', 'menu.settings': 'Definições', 'menu.help': 'Como usar',
-    'menu.lang': '日本語に切り替え', 'menu.sync': 'Sincronizar agora', 'menu.signout': 'Sair',
-    'menu.leaveDemo': 'Sair do modo de teste', 'menu.signout.rec': 'Há uma gravação em curso. Sair mesmo assim? (o rascunho fica guardado neste telemóvel)',
+    'menu.lang': 'Língua / Language / 言語', 'menu.sync': 'Enviar agora', 'menu.update': 'Procurar atualização',
+    'menu.signout': 'Sair', 'menu.leaveDemo': 'Sair do modo de teste',
+    'menu.signout.rec': 'Há uma gravação em curso. Sair mesmo assim? (o rascunho fica guardado neste telemóvel)',
+
+    'off.ready': 'Pronto para usar sem rede',
+    'off.notReady': 'Ainda não está pronto para usar sem rede — mantenha a app aberta com rede um momento',
+    'off.pending': 'Por enviar: {n}', 'off.allSent': 'Tudo enviado', 'off.demo': 'Modo de teste: nada é enviado',
+    'off.lastSync': 'Última ligação ao servidor: {time}', 'off.never': 'Ainda sem ligação ao servidor',
+
+    'upd.checking': 'A procurar atualização…', 'upd.latest': 'Já tem a versão mais recente (v{v}).',
+    'upd.found': 'Versão nova encontrada. A app vai recarregar dentro de segundos.',
+    'upd.offline': 'Sem rede: não é possível procurar atualização agora.',
+    'upd.unsupported': 'Este navegador não suporta atualização automática. Recarregue a página.',
+    'upd.done': 'App atualizada para a v{v}.',
+    'upd.deferred': 'Há uma versão nova. Atualiza sozinha quando terminar a gravação.',
 
     'map.layers': 'Tipo de mapa', 'map.locate': 'A minha posição',
-    'map.layersNote': 'Sem rede, a imagem de satélite não aparece (o Google não permite guardá-la). Use o mapa simples: mostra a sua posição e os registos sobre uma grelha com escala.',
+    'map.layersNote': 'Sem rede, a imagem de satélite não aparece (o Google não permite guardá-la). O mapa simples mostra a sua posição e os registos sobre uma grelha com escala.',
     'map.simpleTag': 'Mapa simples (sem imagem) — funciona sem rede',
     'map.offlineBanner': 'Sem rede: a imagem de satélite pode não carregar. Pode continuar a gravar.',
     'map.onlineBanner': 'A rede voltou.',
@@ -51,42 +68,38 @@ const DICT = {
 
     'new.button': 'Novo registo', 'new.title': 'O que quer registar?', 'new.how': '{kind}: como registar?',
     'new.recommended': 'recomendado',
-    'kind.polygon': 'Área', 'kind.polygon.d': 'Campo, viveiro, bloco (calcula ha)',
-    'kind.line': 'Linha', 'kind.line.d': 'Rio, caminho, sebe (mede o comprimento)',
+    'kind.polygon': 'Área', 'kind.polygon.d': 'Campo, viveiro, bloco (ha)',
+    'kind.line': 'Linha', 'kind.line.d': 'Rio, caminho, sebe (m)',
     'kind.point': 'Ponto', 'kind.point.d': 'Planta, poço, armazém',
-    'method.walk': 'Andar à volta', 'method.corners': 'Marcar os cantos', 'method.tap': 'Tocar no mapa',
-    'method.gps': 'Posição GPS (média)', 'method.import': 'Importado',
-    'method.walk.d.polygon': 'Carregue em Começar e ande pela borda do campo. Os pontos são marcados sozinhos. Melhor para campos com forma irregular.',
-    'method.walk.d.line': 'Carregue em Começar e ande ao longo do rio/caminho. Os pontos são marcados sozinhos.',
-    'method.corners.d.polygon': 'Pare em cada canto e carregue no botão. Faz a média de alguns segundos de GPS (mais preciso). Melhor para campos retangulares.',
-    'method.corners.d.line': 'Pare em cada curva e carregue no botão (média de alguns segundos de GPS).',
-    'method.tap.d.polygon': 'Toque no mapa de satélite em cada canto. Para lugares onde não se pode ir. Não é medição GPS.',
-    'method.tap.d.line': 'Toque no mapa em cada ponto da linha. Não é medição GPS.',
-    'method.gps.d.point': 'Fique parado no lugar. Faz a média de alguns segundos de GPS.',
-    'method.tap.d.point': 'Toque no mapa no lugar do ponto. Não é medição GPS.',
+    'method.corners': 'Andar e marcar os cantos', 'method.tap': 'Tocar no mapa',
+    'method.gps': 'Posição GPS', 'method.walk': 'Andar à volta (antigo)', 'method.import': 'Importado',
+    'method.corners.d.polygon': 'Ande pela borda do campo. Em cada canto, toque em “Canto aqui” — a posição entra logo. Bastam os cantos (até ~10).',
+    'method.corners.d.line': 'Ande ao longo da linha e toque em “Ponto aqui” em cada curva.',
+    'method.tap.d.polygon': 'Toque nos cantos no mapa de satélite. Para lugares onde não pode ir (não é medição GPS).',
+    'method.tap.d.line': 'Toque no mapa em cada ponto da linha (não é medição GPS).',
+    'method.gps.d.point': 'No lugar, toque em “Registar aqui”.',
+    'method.tap.d.point': 'Toque no mapa no lugar do ponto (não é medição GPS).',
 
     'rec.vertices': 'Pontos', 'rec.area': 'Área', 'rec.perimeter': 'Perímetro', 'rec.length': 'Comprimento',
     'rec.accuracy': 'GPS', 'rec.coords': 'Coordenadas',
     'rec.undo': 'Desfazer', 'rec.finish': 'Terminar', 'rec.savePoint': 'Guardar ponto', 'rec.cancel': 'Cancelar gravação',
     'rec.cancel.yes': 'Sim, apagar', 'rec.confirmCancel': 'Apagar esta gravação? Os pontos marcados serão perdidos.',
-    'rec.pause': 'Pausa', 'rec.continue': 'Continuar', 'rec.begin': 'Começar',
-    'rec.mark': 'Marcar este canto (n.º {n})', 'rec.remeasure': 'Medir de novo', 'rec.stopNow': 'Parar já (usar o que tem)',
-    'rec.collecting': 'A medir… faltam {s} s · leituras: {n}',
-    'rec.hint.walk': 'A gravar — ande pela borda. Mantenha o ecrã ligado.',
-    'rec.hint.walkPaused': 'Em pausa. Vá ao ponto de partida e carregue em Começar/Continuar.',
-    'rec.hint.corners.polygon': 'Vá ao canto, fique parado e carregue no botão verde.',
-    'rec.hint.corners.line': 'Vá a cada curva, fique parado e carregue no botão verde.',
+    'rec.addCorner': 'Canto aqui', 'rec.addPoint': 'Ponto aqui', 'rec.here': 'Registar aqui', 'rec.again': 'Registar de novo',
+    'rec.added': 'Ponto {n} marcado (±{acc} m).',
+    'rec.addedLow': 'Ponto {n} marcado, mas a precisão está fraca (±{acc} m). Se quiser, “Desfazer” e marque de novo daqui a pouco.',
+    'rec.waitGps': 'Ainda sem posição GPS. Espere uns segundos num lugar aberto.',
+    'rec.dup': 'Tocou duas vezes no mesmo lugar — ignorado.',
+    'rec.goal': 'até ~10',
+    'rec.hint.corners.polygon': 'Ande pela borda. Em cada canto, toque no botão verde. A área fecha sozinha.',
+    'rec.hint.corners.line': 'Ande ao longo da linha. Em cada curva, toque no botão verde.',
     'rec.hint.tap.polygon': 'Toque no mapa em cada canto, por ordem à volta do campo.',
     'rec.hint.tap.line': 'Toque no mapa em cada ponto, por ordem.',
-    'rec.hint.gps.point': 'Fique parado. A posição é a média de alguns segundos.',
+    'rec.hint.gps.point': 'No lugar do ponto, toque no botão verde.',
     'rec.hint.tap.point': 'Toque no mapa no lugar do ponto (pode tocar de novo para mudar).',
-    'rec.warn.rejected': 'Leituras ignoradas (precisão pior que ±{max} m): {n}.',
-    'rec.warn.gap': 'O GPS parou durante algum tempo (ecrã desligado ou outra app): pode haver um salto no traçado.',
-    'rec.warn.cross': 'As linhas da área cruzam-se (forma de “8”): a área pode estar errada.',
-    'rec.warn.close': 'Ainda está a {m} m do ponto de partida. Volte ao início antes de terminar.',
-    'rec.wasHidden': 'Atenção: com o ecrã desligado ou noutra app o GPS para. Mantenha esta app aberta enquanto anda.',
-    'rec.lowAcc': 'Precisão fraca (±{acc} m, limite ±{max} m). Foi usada a melhor leitura. Se puder, espere e meça de novo.',
-    'rec.noFix': 'Nenhuma leitura de GPS recebida. Vá para um lugar aberto e tente de novo.',
+    'rec.warn.cross': 'As linhas da área cruzam-se (forma de “8”): a área pode estar errada. Use “Desfazer”.',
+    'rec.warn.many': '{n} pontos. Não precisa de pontos nos lados retos — só nos cantos.',
+    'rec.warn.lowAcc': 'Precisão GPS fraca agora (±{acc} m). Espere um pouco antes de marcar.',
+    'rec.wasHidden': 'Atenção: com o ecrã desligado ou noutra app o GPS para. Volte à app antes de marcar o próximo canto.',
     'rec.err.none': 'Nada a guardar.', 'rec.err.poly': 'Uma área precisa de pelo menos 3 pontos.',
     'rec.err.line': 'Uma linha precisa de pelo menos 2 pontos.', 'rec.err.point': 'Ainda não há ponto.',
     'rec.resume': 'Há uma gravação não terminada (pontos: {n}). Continuar?',
@@ -94,10 +107,16 @@ const DICT = {
 
     'save.title': 'Guardar registo', 'save.editTitle': 'Editar dados',
     'save.name': 'Nome *', 'save.category': 'Tipo', 'save.group': 'Grupo / Localidade',
-    'save.group.ph': 'ex.: Malema 2, Netia-Sede', 'save.notes': 'Notas', 'save.ok': 'Guardar',
+    'save.group.ph': 'ex.: Malema 2, Netia-Sede', 'save.notes': 'Notas', 'save.ok': 'Guardar', 'save.photos': 'Fotos',
     'save.warn.tap': '{n} ponto(s) foram tocados no mapa (não medidos com GPS).',
     'save.ok.online': 'Guardado e enviado.', 'save.ok.offline': 'Guardado no telemóvel. Será enviado sozinho quando houver rede.',
     'save.ok.demo': 'Guardado neste telemóvel (modo de teste).', 'save.updated': 'Alterações guardadas.',
+
+    'photo.add': 'Adicionar foto', 'photo.max': 'No máximo {n} fotos por registo.',
+    'photo.busy': 'A preparar a foto…', 'photo.failed': 'Não foi possível ler a foto.',
+    'photo.added': 'Foto adicionada.', 'photo.none': 'Sem fotos. Toque em + para tirar uma.',
+    'photo.remove': 'Retirar foto', 'photo.removeConfirm': 'Retirar esta foto do registo?', 'photo.removed': 'Foto retirada.',
+    'photo.pending': 'por enviar', 'photo.by': '{name} · {date}',
 
     'cat.field': 'Campo / machamba', 'cat.block': 'Bloco do campo', 'cat.nursery': 'Viveiro', 'cat.hedge': 'Sebe viva / vedação',
     'cat.water': 'Rio / água', 'cat.road': 'Caminho / estrada', 'cat.building': 'Edifício / armazém', 'cat.tree': 'Planta / árvore', 'cat.other': 'Outro',
@@ -108,7 +127,7 @@ const DICT = {
     'list.summary': 'Registos: {n} · Áreas: {a} · Total: {ha} ha', 'list.empty': 'Ainda não há registos. Carregue em “Novo registo”.',
     'list.noMatch': 'Nenhum registo com este filtro.',
 
-    'd.zoom': 'Ver no mapa', 'd.gmaps': 'Abrir no Google Maps', 'd.share': 'Partilhar texto', 'd.kml': 'Enviar KML',
+    'd.zoom': 'Mapa', 'd.gmaps': 'Google Maps', 'd.share': 'Partilhar', 'd.kml': 'KML',
     'd.edit': 'Editar', 'd.archive': 'Arquivar', 'd.archive.confirm': 'Arquivar “{name}”? Deixa de aparecer na lista (não é apagado da base de dados).',
     'd.archived': 'Arquivado.', 'd.by': 'Registado por', 'd.date': 'Data', 'd.method': 'Método', 'd.accuracy': 'Precisão GPS',
     'd.accText': 'mediana ±{med} m · pior ±{max} m', 'd.tapped': 'Pontos tocados no mapa', 'd.editedBy': 'Editado por',
@@ -119,18 +138,16 @@ const DICT = {
     'exp.title': 'Exportar', 'exp.scope': 'O quê', 'exp.scope.all': 'Todos os registos', 'exp.scope.filtered': 'Só os do filtro da lista',
     'exp.scope.mine': 'Só os meus', 'exp.count': 'Registos: {n}',
     'exp.kml': 'Google Earth, Google My Maps (com as áreas)', 'exp.geojson': 'QGIS e outros programas de mapas',
-    'exp.csv': 'Excel (uma linha por registo, com área em ha)', 'exp.zip': 'Os três ficheiros juntos',
-    'exp.none': 'Não há registos para exportar.', 'exp.done': 'Exportado: {n} registo(s).',
-    'exp.readme': 'Field GPS Map — exportação\r\n\r\nfield_gps_map.kml     Google Earth (Web: Projetos > Importar KML) ou Google My Maps (Importar).\r\nfield_gps_map.geojson QGIS: arrastar o ficheiro para o mapa. Coordenadas WGS84 (EPSG:4326).\r\nfield_gps_map.csv     Excel. area_ha = hectares; wkt = forma (QGIS: Texto delimitado > WKT).\r\n',
+    'exp.csv': 'Excel (uma linha por registo, com área em ha)', 'exp.zip': 'Os três ficheiros juntos + fotos',
+    'exp.none': 'Não há registos para exportar.', 'exp.done': 'Exportado: {n} registo(s).', 'exp.busy': 'A juntar as fotos…',
+    'exp.readme': 'Field GPS Map — exportação\r\n\r\nfield_gps_map.kml     Google Earth (Web: Projetos > Importar KML) ou Google My Maps (Importar).\r\nfield_gps_map.geojson QGIS: arrastar o ficheiro para o mapa. Coordenadas WGS84 (EPSG:4326).\r\nfield_gps_map.csv     Excel. area_ha = hectares; wkt = forma (QGIS: Texto delimitado > WKT).\r\nphotos/               Fotos de cada registo (nome do registo + número).\r\n',
 
     'imp.title': 'Importar', 'imp.lead': 'KML/KMZ (ex.: exportado do GPS Fields Area Measure ou Google Earth) ou GeoJSON. Cada área/linha/ponto vira um registo partilhado.',
     'imp.found': 'Encontrado — áreas: {p}, linhas: {l}, pontos: {pt}.', 'imp.error': 'Não foi possível ler o ficheiro.',
     'imp.ok': 'Importar', 'imp.unnamed': 'Importado {n}', 'imp.done': 'Importado: {n} registo(s).',
 
     'set.title': 'Definições', 'set.lang': 'Língua',
-    'set.maxAcc': 'Precisão mínima aceite (m)', 'set.maxAcc.d': 'Leituras piores que isto não são usadas. 10 m é um bom valor para telemóveis.',
-    'set.minDist': 'Distância entre pontos ao andar (m)', 'set.minDist.d': 'Ao andar à volta, marca um ponto a cada X metros.',
-    'set.avg': 'Segundos de média (cantos e pontos)', 'set.avg.d': 'Mais segundos = mais preciso, mas mais lento.',
+    'set.maxAcc': 'Aviso de precisão fraca (m)', 'set.maxAcc.d': 'Se o GPS estiver pior do que isto ao marcar um canto, a app avisa. 10 m é um bom valor.',
     'set.mapMode': 'Mapa', 'set.mapMode.auto': 'Automático (Google com rede, simples sem rede)',
     'set.mapMode.google': 'Sempre Google', 'set.mapMode.simple': 'Mapa simples (sem imagem)',
     'set.mapType': 'Imagem do Google', 'set.mapType.hybrid': 'Satélite com nomes', 'set.mapType.satellite': 'Satélite',
@@ -141,16 +158,171 @@ const DICT = {
     'sync.demoHelp': 'Modo de teste: os dados ficam só neste telemóvel e não são partilhados.',
     'sync.offlineHelp': 'Sem rede. {n} registo(s) guardados no telemóvel serão enviados sozinhos quando houver rede (com a app aberta).',
     'sync.trying': 'A enviar…', 'sync.done': 'Tudo enviado.', 'sync.wait': 'Ainda a enviar. Mantenha a app aberta com rede.',
+    'sync.sentN': 'A rede voltou: {n} registo(s) enviados.',
     'err.write': 'Erro ao guardar no servidor: {msg}'
+  },
+
+  en: {
+    'common.back': 'Back', 'common.cancel': 'Cancel', 'common.close': 'Close', 'common.ok': 'OK', 'common.save': 'Save',
+
+    'login.lead': 'Record fields, lines and points with your phone’s GPS — even without signal — and share them with the team.',
+    'login.p1': 'Works offline: records stay on the phone and upload by themselves when there is signal.',
+    'login.p2': 'Walk around the field and tap a button at each corner. The area in hectares appears at once.',
+    'login.p3': 'Field photos, Google satellite map, and export to Google Earth and Excel.',
+    'login.google': 'Sign in with Google',
+    'login.demo': 'Try without an account (this phone only)',
+    'login.loading': 'Loading…',
+    'login.checking': 'Checking access…',
+    'login.opening': 'Opening the Google window…',
+    'login.failed': 'Could not sign in ({msg}).',
+    'login.error': 'Could not check access. Check the connection and try again. ({msg})',
+    'denied.title': 'No access',
+    'denied.text': 'The account {email} does not have access yet.',
+    'denied.how': 'Ask the person in charge (Kaz) to add your e-mail to the list, then tap “Check again”.',
+    'denied.recheck': 'Check again',
+    'boot.title': 'Could not open',
+    'boot.offline': 'No signal, and the app has not been opened on this phone with signal yet. Open it once with signal; after that it works offline.',
+    'boot.failed': 'The app failed to load. Please try again.',
+    'boot.retry': 'Try again',
+    'demo.user': 'Test mode',
+    'demo.note': 'Test mode — data stays on this phone only',
+
+    'menu.open': 'Menu', 'menu.list': 'Records', 'menu.export': 'Export (KML / CSV / GeoJSON)',
+    'menu.import': 'Import KML / GeoJSON', 'menu.settings': 'Settings', 'menu.help': 'How to use',
+    'menu.lang': 'Language / Língua / 言語', 'menu.sync': 'Send now', 'menu.update': 'Check for update',
+    'menu.signout': 'Sign out', 'menu.leaveDemo': 'Leave test mode',
+    'menu.signout.rec': 'A recording is in progress. Sign out anyway? (the draft stays on this phone)',
+
+    'off.ready': 'Ready to use offline',
+    'off.notReady': 'Not ready for offline use yet — keep the app open with signal for a moment',
+    'off.pending': 'Waiting to send: {n}', 'off.allSent': 'Everything sent', 'off.demo': 'Test mode: nothing is sent',
+    'off.lastSync': 'Last contact with the server: {time}', 'off.never': 'No contact with the server yet',
+
+    'upd.checking': 'Checking for update…', 'upd.latest': 'You have the latest version (v{v}).',
+    'upd.found': 'New version found. The app will reload in a few seconds.',
+    'upd.offline': 'No signal: cannot check for updates now.',
+    'upd.unsupported': 'This browser does not support automatic updates. Reload the page.',
+    'upd.done': 'App updated to v{v}.',
+    'upd.deferred': 'A new version is available. It will update by itself when the recording ends.',
+
+    'map.layers': 'Map type', 'map.locate': 'My location',
+    'map.layersNote': 'Without signal the satellite image does not appear (Google does not allow storing it). The simple map shows your position and the records on a grid with a scale.',
+    'map.simpleTag': 'Simple map (no imagery) — works offline',
+    'map.offlineBanner': 'No signal: the satellite image may not load. You can keep recording.',
+    'map.onlineBanner': 'Signal is back.',
+    'map.useSimple': 'Use simple map', 'map.useGoogle': 'Show satellite',
+    'map.tilesFail': 'The Google map did not load.',
+    'map.googleFail': 'Google Maps is not available now (no signal?). Using the simple map.',
+
+    'gps.wait': 'GPS…', 'gps.off': 'GPS off',
+    'gps.waiting': 'Waiting for GPS. Stand in an open place (no trees overhead) for 1–2 minutes.',
+    'gps.denied': 'Location is blocked. Turn on the phone’s location and allow it for this site (lock icon next to the address → Permissions → Location).',
+    'gps.unavailable': 'GPS is not available on this device/browser.',
+    'gps.detail': 'Accuracy ±{acc} m ({age} s ago). {lat}, {lng}. Smaller is better: wait until it is under 5–10 m.',
+
+    'new.button': 'New record', 'new.title': 'What do you want to record?', 'new.how': '{kind}: how to record?',
+    'new.recommended': 'recommended',
+    'kind.polygon': 'Area', 'kind.polygon.d': 'Field, nursery, block (ha)',
+    'kind.line': 'Line', 'kind.line.d': 'River, path, hedge (m)',
+    'kind.point': 'Point', 'kind.point.d': 'Plant, well, store',
+    'method.corners': 'Walk & mark corners', 'method.tap': 'Tap on the map',
+    'method.gps': 'GPS position', 'method.walk': 'Walk around (old)', 'method.import': 'Imported',
+    'method.corners.d.polygon': 'Walk along the field edge. At each corner tap “Corner here” — the position is added at once. Corners are enough (up to ~10).',
+    'method.corners.d.line': 'Walk along the line and tap “Point here” at each bend.',
+    'method.tap.d.polygon': 'Tap the corners on the satellite map. For places you cannot reach (not a GPS measurement).',
+    'method.tap.d.line': 'Tap each point of the line on the map (not a GPS measurement).',
+    'method.gps.d.point': 'At the spot, tap “Record here”.',
+    'method.tap.d.point': 'Tap the spot on the map (not a GPS measurement).',
+
+    'rec.vertices': 'Points', 'rec.area': 'Area', 'rec.perimeter': 'Perimeter', 'rec.length': 'Length',
+    'rec.accuracy': 'GPS', 'rec.coords': 'Coordinates',
+    'rec.undo': 'Undo', 'rec.finish': 'Finish', 'rec.savePoint': 'Save point', 'rec.cancel': 'Cancel recording',
+    'rec.cancel.yes': 'Yes, delete', 'rec.confirmCancel': 'Delete this recording? The marked points will be lost.',
+    'rec.addCorner': 'Corner here', 'rec.addPoint': 'Point here', 'rec.here': 'Record here', 'rec.again': 'Record again',
+    'rec.added': 'Point {n} marked (±{acc} m).',
+    'rec.addedLow': 'Point {n} marked, but accuracy is poor (±{acc} m). If you like, “Undo” and mark again in a moment.',
+    'rec.waitGps': 'No GPS position yet. Wait a few seconds in an open place.',
+    'rec.dup': 'Tapped twice at the same place — ignored.',
+    'rec.goal': 'up to ~10',
+    'rec.hint.corners.polygon': 'Walk along the edge. At each corner, tap the green button. The area closes by itself.',
+    'rec.hint.corners.line': 'Walk along the line. At each bend, tap the green button.',
+    'rec.hint.tap.polygon': 'Tap each corner on the map, in order around the field.',
+    'rec.hint.tap.line': 'Tap each point on the map, in order.',
+    'rec.hint.gps.point': 'At the spot, tap the green button.',
+    'rec.hint.tap.point': 'Tap the spot on the map (tap again to move it).',
+    'rec.warn.cross': 'The area’s edges cross (figure “8”): the area may be wrong. Use “Undo”.',
+    'rec.warn.many': '{n} points. Straight sides need no points — corners only.',
+    'rec.warn.lowAcc': 'GPS accuracy is poor right now (±{acc} m). Wait a little before marking.',
+    'rec.wasHidden': 'Note: with the screen off or in another app the GPS stops. Come back to the app before marking the next corner.',
+    'rec.err.none': 'Nothing to save.', 'rec.err.poly': 'An area needs at least 3 points.',
+    'rec.err.line': 'A line needs at least 2 points.', 'rec.err.point': 'No point yet.',
+    'rec.resume': 'There is an unfinished recording ({n} points). Continue?',
+    'rec.resume.yes': 'Continue', 'rec.resume.no': 'Delete',
+
+    'save.title': 'Save record', 'save.editTitle': 'Edit details',
+    'save.name': 'Name *', 'save.category': 'Type', 'save.group': 'Group / Locality',
+    'save.group.ph': 'e.g. Malema 2, Netia-Sede', 'save.notes': 'Notes', 'save.ok': 'Save', 'save.photos': 'Photos',
+    'save.warn.tap': '{n} point(s) were tapped on the map (not measured by GPS).',
+    'save.ok.online': 'Saved and sent.', 'save.ok.offline': 'Saved on the phone. It will be sent by itself when there is signal.',
+    'save.ok.demo': 'Saved on this phone (test mode).', 'save.updated': 'Changes saved.',
+
+    'photo.add': 'Add photo', 'photo.max': 'Up to {n} photos per record.',
+    'photo.busy': 'Preparing the photo…', 'photo.failed': 'Could not read the photo.',
+    'photo.added': 'Photo added.', 'photo.none': 'No photos. Tap + to take one.',
+    'photo.remove': 'Remove photo', 'photo.removeConfirm': 'Remove this photo from the record?', 'photo.removed': 'Photo removed.',
+    'photo.pending': 'not sent', 'photo.by': '{name} · {date}',
+
+    'cat.field': 'Field / machamba', 'cat.block': 'Field block', 'cat.nursery': 'Nursery', 'cat.hedge': 'Hedge / fence',
+    'cat.water': 'River / water', 'cat.road': 'Path / road', 'cat.building': 'Building / store', 'cat.tree': 'Plant / tree', 'cat.other': 'Other',
+
+    'list.title': 'Records', 'list.search': 'Search name, group, notes…', 'list.all': 'All', 'list.areas': 'Areas',
+    'list.lines': 'Lines', 'list.points': 'Points', 'list.mine': 'Mine only', 'list.allGroups': 'All groups',
+    'list.sort.new': 'Newest', 'list.sort.name': 'Name', 'list.sort.area': 'Largest first',
+    'list.summary': 'Records: {n} · Areas: {a} · Total: {ha} ha', 'list.empty': 'No records yet. Tap “New record”.',
+    'list.noMatch': 'No records match this filter.',
+
+    'd.zoom': 'Map', 'd.gmaps': 'Google Maps', 'd.share': 'Share', 'd.kml': 'KML',
+    'd.edit': 'Edit', 'd.archive': 'Archive', 'd.archive.confirm': 'Archive “{name}”? It disappears from the list (it is not deleted from the database).',
+    'd.archived': 'Archived.', 'd.by': 'Recorded by', 'd.date': 'Date', 'd.method': 'Method', 'd.accuracy': 'GPS accuracy',
+    'd.accText': 'median ±{med} m · worst ±{max} m', 'd.tapped': 'Points tapped on the map', 'd.editedBy': 'Edited by',
+    'd.sync': 'Upload', 'd.sync.pending': 'Waiting for signal (saved on the phone)', 'd.sync.ok': 'Sent',
+    'd.sync.demo': 'This phone only (test mode)', 'd.noName': '(no name)', 'd.appLink': 'Open in the app',
+    'd.copied': 'Text copied. Paste it in WhatsApp.', 'd.copyPrompt': 'Copy the text:',
+
+    'exp.title': 'Export', 'exp.scope': 'What', 'exp.scope.all': 'All records', 'exp.scope.filtered': 'Only the list filter result',
+    'exp.scope.mine': 'Mine only', 'exp.count': 'Records: {n}',
+    'exp.kml': 'Google Earth, Google My Maps (with the areas)', 'exp.geojson': 'QGIS and other map software',
+    'exp.csv': 'Excel (one row per record, with area in ha)', 'exp.zip': 'All three files + photos',
+    'exp.none': 'No records to export.', 'exp.done': 'Exported: {n} record(s).', 'exp.busy': 'Collecting the photos…',
+    'exp.readme': 'Field GPS Map — export\r\n\r\nfield_gps_map.kml     Google Earth (Web: Projects > Import KML file) or Google My Maps (Import).\r\nfield_gps_map.geojson QGIS: drag the file onto the map. Coordinates WGS84 (EPSG:4326).\r\nfield_gps_map.csv     Excel. area_ha = hectares; wkt = shape (QGIS: Delimited text > WKT).\r\nphotos/               Photos of each record (record name + number).\r\n',
+
+    'imp.title': 'Import', 'imp.lead': 'KML/KMZ (e.g. exported from GPS Fields Area Measure or Google Earth) or GeoJSON. Each area/line/point becomes a shared record.',
+    'imp.found': 'Found — areas: {p}, lines: {l}, points: {pt}.', 'imp.error': 'Could not read the file.',
+    'imp.ok': 'Import', 'imp.unnamed': 'Imported {n}', 'imp.done': 'Imported: {n} record(s).',
+
+    'set.title': 'Settings', 'set.lang': 'Language',
+    'set.maxAcc': 'Poor-accuracy warning (m)', 'set.maxAcc.d': 'If GPS is worse than this when you mark a corner, the app warns you. 10 m is a good value.',
+    'set.mapMode': 'Map', 'set.mapMode.auto': 'Automatic (Google with signal, simple without)',
+    'set.mapMode.google': 'Always Google', 'set.mapMode.simple': 'Simple map (no imagery)',
+    'set.mapType': 'Google imagery', 'set.mapType.hybrid': 'Satellite with labels', 'set.mapType.satellite': 'Satellite',
+    'set.mapType.roadmap': 'Map', 'set.mapType.terrain': 'Terrain', 'set.saved': 'Settings saved.',
+
+    'sync.demo': 'Test', 'sync.ok': 'Sent', 'sync.cache': 'Saved', 'sync.offline': 'Offline',
+    'sync.offlineN': 'Offline · {n} to send', 'sync.pending': '{n} to send', 'sync.badge': 'not sent',
+    'sync.demoHelp': 'Test mode: data stays on this phone and is not shared.',
+    'sync.offlineHelp': 'No signal. {n} record(s) saved on the phone will be sent by themselves when there is signal (with the app open).',
+    'sync.trying': 'Sending…', 'sync.done': 'Everything sent.', 'sync.wait': 'Still sending. Keep the app open with signal.',
+    'sync.sentN': 'Signal is back: {n} record(s) sent.',
+    'err.write': 'Error saving to the server: {msg}'
   },
 
   ja: {
     'common.back': '戻る', 'common.cancel': 'キャンセル', 'common.close': '閉じる', 'common.ok': 'OK', 'common.save': '保存',
 
-    'login.lead': 'スマホのGPSで地点・区画(面積)・線を記録し、チームで共有するアプリです。電波が無くても記録できます。',
+    'login.lead': 'スマホのGPSで区画・線・地点を記録し、チームで共有するアプリです。電波が無くても記録できます。',
     'login.p1': '圏外でも記録できます。記録は端末に保存され、電波が戻ると自動で送信されます。',
-    'login.p2': '外周を歩く・角を記録する、のどちらでも面積(ha)がその場で出ます。',
-    'login.p3': 'Google マップの衛星写真の上に表示。KML(Google Earth/マイマップ)・CSV(Excel)で書き出せます。',
+    'login.p2': '圃場の縁を歩き、角でボタンをタップするだけ。面積(ha)がその場で出ます。',
+    'login.p3': '圃場の写真、Google マップの衛星写真、Google Earth・Excel への書き出し。',
     'login.google': 'Googleでログイン',
     'login.demo': 'アカウントなしで試す(この端末だけ)',
     'login.loading': '読み込み中…',
@@ -171,8 +343,21 @@ const DICT = {
 
     'menu.open': 'メニュー', 'menu.list': '記録の一覧', 'menu.export': '書き出し(KML / CSV / GeoJSON)',
     'menu.import': 'KML / GeoJSON の読み込み', 'menu.settings': '設定', 'menu.help': '使い方',
-    'menu.lang': 'Mudar para português', 'menu.sync': '今すぐ同期', 'menu.signout': 'ログアウト',
-    'menu.leaveDemo': '試用モードを終える', 'menu.signout.rec': '記録の途中です。ログアウトしますか?(下書きはこの端末に残ります)',
+    'menu.lang': '言語 / Language / Língua', 'menu.sync': '今すぐ送信', 'menu.update': 'アップデートを確認',
+    'menu.signout': 'ログアウト', 'menu.leaveDemo': '試用モードを終える',
+    'menu.signout.rec': '記録の途中です。ログアウトしますか?(下書きはこの端末に残ります)',
+
+    'off.ready': '圏外で使う準備ができています',
+    'off.notReady': 'まだ圏外で使う準備ができていません。電波のある所で少しアプリを開いたままにしてください',
+    'off.pending': '未送信 {n} 件', 'off.allSent': 'すべて送信済み', 'off.demo': '試用モード:送信はしません',
+    'off.lastSync': 'サーバーと最後につながった時刻:{time}', 'off.never': 'まだサーバーとつながっていません',
+
+    'upd.checking': 'アップデートを確認しています…', 'upd.latest': '最新版です(v{v})。',
+    'upd.found': '新しい版が見つかりました。数秒で再読み込みします。',
+    'upd.offline': '圏外なので、いまは確認できません。',
+    'upd.unsupported': 'このブラウザは自動更新に対応していません。ページを再読み込みしてください。',
+    'upd.done': 'v{v} に更新しました。',
+    'upd.deferred': '新しい版があります。記録が終わったら自動で更新します。',
 
     'map.layers': '地図の種類', 'map.locate': '現在地',
     'map.layersNote': '圏外では衛星写真は出ません(Google の規約で保存できないため)。簡易地図なら、方眼と縮尺の上に現在地と記録を表示します。',
@@ -191,42 +376,38 @@ const DICT = {
 
     'new.button': '新しく記録', 'new.title': '何を記録しますか?', 'new.how': '{kind}:記録のしかた',
     'new.recommended': 'おすすめ',
-    'kind.polygon': '区画(面)', 'kind.polygon.d': '圃場・苗畑・ブロック(面積ha)',
-    'kind.line': '線', 'kind.line.d': '川・道・生垣(長さ)',
+    'kind.polygon': '区画', 'kind.polygon.d': '圃場・苗畑・ブロック(ha)',
+    'kind.line': '線', 'kind.line.d': '川・道・生垣(m)',
     'kind.point': '地点', 'kind.point.d': '株・井戸・倉庫',
-    'method.walk': '外周を歩く', 'method.corners': '角を記録', 'method.tap': '地図をタップ',
-    'method.gps': 'GPSで測位(平均)', 'method.import': '読み込み',
-    'method.walk.d.polygon': '「開始」を押して圃場の縁を歩くと、自動で点が打たれます。形が不規則な圃場向き。',
-    'method.walk.d.line': '「開始」を押して川・道に沿って歩くと、自動で点が打たれます。',
-    'method.corners.d.polygon': '角ごとに立ち止まってボタンを押します。数秒分のGPSを平均するので正確。長方形の圃場向き。',
-    'method.corners.d.line': '曲がり角ごとに立ち止まってボタンを押します(数秒分のGPSを平均)。',
-    'method.tap.d.polygon': '衛星写真の上で角をタップします。立ち入れない場所用。GPSの実測ではありません。',
-    'method.tap.d.line': '地図上で線の点をタップします。GPSの実測ではありません。',
-    'method.gps.d.point': 'その場に立ち止まります。数秒分のGPSを平均します。',
-    'method.tap.d.point': '地図上でその場所をタップします。GPSの実測ではありません。',
+    'method.corners': '歩いて角を追加', 'method.tap': '地図をタップ',
+    'method.gps': '現在地', 'method.walk': '外周を歩く(旧)', 'method.import': '読み込み',
+    'method.corners.d.polygon': '圃場の縁を歩き、角に来たら「ここを角に」をタップ。その場の位置がすぐ入ります。角だけで十分(10個以内が目安)。',
+    'method.corners.d.line': '線に沿って歩き、曲がり角で「ここに点」をタップします。',
+    'method.tap.d.polygon': '衛星写真の上で角をタップします。立ち入れない場所用(GPSの実測ではありません)。',
+    'method.tap.d.line': '地図上で線の点を順にタップします(GPSの実測ではありません)。',
+    'method.gps.d.point': 'その場所で「ここを記録」をタップします。',
+    'method.tap.d.point': '地図上でその場所をタップします(GPSの実測ではありません)。',
 
     'rec.vertices': '点の数', 'rec.area': '面積', 'rec.perimeter': '外周', 'rec.length': '長さ',
     'rec.accuracy': 'GPS', 'rec.coords': '座標',
     'rec.undo': '1つ戻す', 'rec.finish': '終了', 'rec.savePoint': 'この地点を保存', 'rec.cancel': '記録をやめる',
     'rec.cancel.yes': 'はい、消す', 'rec.confirmCancel': 'この記録を消しますか?打った点は失われます。',
-    'rec.pause': '一時停止', 'rec.continue': '再開', 'rec.begin': '開始',
-    'rec.mark': 'この角を記録({n}つ目)', 'rec.remeasure': '測り直す', 'rec.stopNow': 'ここで打ち切る(集まった分で決める)',
-    'rec.collecting': '測位中… 残り {s} 秒 · {n} 回',
-    'rec.hint.walk': '記録中 — 縁を歩いてください。画面は点けたままに。',
-    'rec.hint.walkPaused': '一時停止中。出発点に立って「開始/再開」を押してください。',
-    'rec.hint.corners.polygon': '角まで行って立ち止まり、緑のボタンを押してください。',
-    'rec.hint.corners.line': '曲がり角ごとに立ち止まり、緑のボタンを押してください。',
+    'rec.addCorner': 'ここを角に', 'rec.addPoint': 'ここに点', 'rec.here': 'ここを記録', 'rec.again': '記録し直す',
+    'rec.added': '{n} 点目を追加しました(±{acc} m)。',
+    'rec.addedLow': '{n} 点目を追加しましたが、精度が悪い状態です(±{acc} m)。必要なら「1つ戻す」で少し待って打ち直してください。',
+    'rec.waitGps': 'まだGPSの位置が取れていません。開けた場所で数秒待ってください。',
+    'rec.dup': '同じ場所で2回押したようです。2回目は無視しました。',
+    'rec.goal': '10個以内が目安',
+    'rec.hint.corners.polygon': '縁を歩き、角ごとに緑のボタンをタップ。区画は自動で閉じます。',
+    'rec.hint.corners.line': '線に沿って歩き、曲がり角ごとに緑のボタンをタップ。',
     'rec.hint.tap.polygon': '圃場を一周する順に、地図上の角をタップしてください。',
     'rec.hint.tap.line': '順番に、地図上の点をタップしてください。',
-    'rec.hint.gps.point': '立ち止まってください。数秒分の測位を平均します。',
+    'rec.hint.gps.point': 'その場所で緑のボタンをタップしてください。',
     'rec.hint.tap.point': '地図上でその場所をタップ(もう一度タップすると置き直し)。',
-    'rec.warn.rejected': '誤差が ±{max} m より大きい測位を {n} 回使わずに捨てました。',
-    'rec.warn.gap': 'GPSが一時止まっていました(画面が消えた・別アプリに切り替えた)。軌跡が飛んでいる可能性があります。',
-    'rec.warn.cross': '区画の線が交差しています(8の字)。面積が正しくない可能性があります。',
-    'rec.warn.close': '出発点からまだ {m} m 離れています。出発点まで戻ってから終了してください。',
-    'rec.wasHidden': '注意:画面が消えたり別のアプリに切り替えたりするとGPSが止まります。歩いている間はこのアプリを開いたままにしてください。',
-    'rec.lowAcc': '精度が悪い状態です(±{acc} m、基準 ±{max} m)。いちばん良い測位を使いました。できれば待って測り直してください。',
-    'rec.noFix': 'GPSの測位が1回も届きませんでした。開けた場所に移ってもう一度お試しください。',
+    'rec.warn.cross': '区画の線が交差しています(8の字)。面積が正しくない可能性があります。「1つ戻す」で直してください。',
+    'rec.warn.many': '点が {n} 個あります。まっすぐな辺の途中には点は要りません(角だけで十分)。',
+    'rec.warn.lowAcc': 'いまGPSの精度が悪い状態です(±{acc} m)。少し待ってから打ってください。',
+    'rec.wasHidden': '注意:画面が消えたり別のアプリに切り替えたりするとGPSが止まります。次の角を打つ前にアプリに戻ってください。',
     'rec.err.none': '保存するものがありません。', 'rec.err.poly': '区画には点が3つ以上必要です。',
     'rec.err.line': '線には点が2つ以上必要です。', 'rec.err.point': 'まだ地点がありません。',
     'rec.resume': '終わっていない記録(点 {n} 個)があります。続けますか?',
@@ -234,10 +415,16 @@ const DICT = {
 
     'save.title': '記録を保存', 'save.editTitle': '情報を編集',
     'save.name': '名前 *', 'save.category': '種類', 'save.group': 'グループ / 地域',
-    'save.group.ph': '例:Malema 2、Netia-Sede', 'save.notes': 'メモ', 'save.ok': '保存',
+    'save.group.ph': '例:Malema 2、Netia-Sede', 'save.notes': 'メモ', 'save.ok': '保存', 'save.photos': '写真',
     'save.warn.tap': '{n} 個の点は地図のタップで置いたものです(GPSの実測ではありません)。',
     'save.ok.online': '保存して送信しました。', 'save.ok.offline': '端末に保存しました。電波が戻ると自動で送信されます。',
     'save.ok.demo': 'この端末に保存しました(試用モード)。', 'save.updated': '変更を保存しました。',
+
+    'photo.add': '写真を追加', 'photo.max': '写真は1件につき {n} 枚までです。',
+    'photo.busy': '写真を準備しています…', 'photo.failed': '写真を読み込めませんでした。',
+    'photo.added': '写真を追加しました。', 'photo.none': '写真はまだありません。+ で撮影できます。',
+    'photo.remove': '写真を外す', 'photo.removeConfirm': 'この写真を記録から外しますか?', 'photo.removed': '写真を外しました。',
+    'photo.pending': '未送信', 'photo.by': '{name} · {date}',
 
     'cat.field': '圃場・畑', 'cat.block': '圃場の区画(ブロック)', 'cat.nursery': '苗畑', 'cat.hedge': '生垣・フェンス',
     'cat.water': '川・水源', 'cat.road': '道', 'cat.building': '建物・倉庫', 'cat.tree': '株・木', 'cat.other': 'その他',
@@ -248,7 +435,7 @@ const DICT = {
     'list.summary': '{n} 件 · 区画 {a} 件 · 合計 {ha} ha', 'list.empty': 'まだ記録がありません。「新しく記録」を押してください。',
     'list.noMatch': 'この条件に合う記録はありません。',
 
-    'd.zoom': '地図で見る', 'd.gmaps': 'Google マップで開く', 'd.share': '文章で共有', 'd.kml': 'KMLを送る',
+    'd.zoom': '地図', 'd.gmaps': 'Google マップ', 'd.share': '共有', 'd.kml': 'KML',
     'd.edit': '編集', 'd.archive': 'アーカイブ', 'd.archive.confirm': '「{name}」をアーカイブしますか?一覧から消えます(データベースからは消えません)。',
     'd.archived': 'アーカイブしました。', 'd.by': '記録者', 'd.date': '日時', 'd.method': '方法', 'd.accuracy': 'GPSの精度',
     'd.accText': '中央値 ±{med} m · 最大 ±{max} m', 'd.tapped': '地図タップの点', 'd.editedBy': '最終編集',
@@ -259,18 +446,16 @@ const DICT = {
     'exp.title': '書き出し', 'exp.scope': '対象', 'exp.scope.all': 'すべての記録', 'exp.scope.filtered': '一覧の絞り込み結果だけ',
     'exp.scope.mine': '自分の記録だけ', 'exp.count': '{n} 件',
     'exp.kml': 'Google Earth・Google マイマップ用(区画の形も入ります)', 'exp.geojson': 'QGIS などの地図ソフト用',
-    'exp.csv': 'Excel 用(1行1件、面積 ha つき)', 'exp.zip': '上の3つをまとめて',
-    'exp.none': '書き出す記録がありません。', 'exp.done': '{n} 件を書き出しました。',
-    'exp.readme': 'Field GPS Map 書き出し\r\n\r\nfield_gps_map.kml     Google Earth(Web版:プロジェクト > KMLファイルをインポート)、Google マイマップ(インポート)。\r\nfield_gps_map.geojson QGIS:ファイルを地図にドラッグ。座標は WGS84(EPSG:4326)。\r\nfield_gps_map.csv     Excel。area_ha = ヘクタール、wkt = 形(QGIS:区切りテキスト > WKT)。\r\n',
+    'exp.csv': 'Excel 用(1行1件、面積 ha つき)', 'exp.zip': '上の3つ+写真をまとめて',
+    'exp.none': '書き出す記録がありません。', 'exp.done': '{n} 件を書き出しました。', 'exp.busy': '写真を集めています…',
+    'exp.readme': 'Field GPS Map 書き出し\r\n\r\nfield_gps_map.kml     Google Earth(Web版:プロジェクト > KMLファイルをインポート)、Google マイマップ(インポート)。\r\nfield_gps_map.geojson QGIS:ファイルを地図にドラッグ。座標は WGS84(EPSG:4326)。\r\nfield_gps_map.csv     Excel。area_ha = ヘクタール、wkt = 形(QGIS:区切りテキスト > WKT)。\r\nphotos/               記録ごとの写真(記録の名前+番号)。\r\n',
 
     'imp.title': '読み込み', 'imp.lead': 'KML/KMZ(GPS Fields Area Measure や Google Earth から書き出したもの)か GeoJSON。区画・線・地点が1件ずつ共有の記録になります。',
     'imp.found': '区画 {p} 件、線 {l} 件、地点 {pt} 件が見つかりました。', 'imp.error': 'ファイルを読めませんでした。',
     'imp.ok': '読み込む', 'imp.unnamed': '読み込み {n}', 'imp.done': '{n} 件を読み込みました。',
 
     'set.title': '設定', 'set.lang': '言語',
-    'set.maxAcc': '使う測位の誤差の上限(m)', 'set.maxAcc.d': 'これより誤差の大きい測位は使いません。スマホなら 10 m が目安です。',
-    'set.minDist': '歩いて記録するときの点の間隔(m)', 'set.minDist.d': '外周を歩くとき、何 m ごとに点を打つか。',
-    'set.avg': '平均する秒数(角・地点)', 'set.avg.d': '長いほど正確ですが、時間がかかります。',
+    'set.maxAcc': '精度が悪いときの警告(m)', 'set.maxAcc.d': '角を打つときのGPSの誤差がこれより大きいと警告します。10 m が目安です。',
     'set.mapMode': '地図', 'set.mapMode.auto': '自動(電波あり=Google、圏外=簡易地図)',
     'set.mapMode.google': '常に Google', 'set.mapMode.simple': '簡易地図(写真なし)',
     'set.mapType': 'Google の表示', 'set.mapType.hybrid': '航空写真+地名', 'set.mapType.satellite': '航空写真',
@@ -281,6 +466,7 @@ const DICT = {
     'sync.demoHelp': '試用モードです。データはこの端末にだけあり、共有されません。',
     'sync.offlineHelp': '圏外です。端末に保存された {n} 件は、電波が戻ると(アプリを開いている間に)自動で送信されます。',
     'sync.trying': '送信しています…', 'sync.done': 'すべて送信しました。', 'sync.wait': 'まだ送信中です。電波のある所でアプリを開いたままにしてください。',
+    'sync.sentN': '電波が戻り、{n} 件を送信しました。',
     'err.write': 'サーバーへの保存でエラー:{msg}'
   }
 };
@@ -289,71 +475,111 @@ const HELP = {
   pt: `
 <h2>Como usar</h2>
 <h3>1. Antes de ir ao campo (com rede)</h3>
-<ol><li>Abra a app uma vez com rede e entre com a conta Google. Depois funciona sem rede.</li>
+<ol><li>Abra a app uma vez com rede e entre com a conta Google. No menu deve aparecer <b>Pronto para usar sem rede</b>.</li>
 <li>No Chrome: menu ⋮ → <b>Adicionar ao ecrã principal</b>, para abrir como uma app.</li>
 <li>Ligue a localização do telemóvel (modo de alta precisão).</li></ol>
-<h3>2. Registar uma área (campo, viveiro, bloco)</h3>
-<ol><li>Carregue em <b>Novo registo</b> → <b>Área</b>.</li>
-<li><b>Andar à volta</b>: vá ao ponto de partida, carregue em <b>Começar</b> e ande pela borda até voltar ao início. Os pontos são marcados sozinhos.</li>
-<li><b>Marcar os cantos</b> (campos retangulares): em cada canto fique parado e carregue em <b>Marcar este canto</b>. A app faz a média de alguns segundos de GPS.</li>
-<li><b>Tocar no mapa</b>: só para lugares onde não pode ir (não é medição GPS).</li>
-<li>Carregue em <b>Terminar</b>, escreva o nome e o grupo/localidade e <b>Guardar</b>. A área em hectares aparece na hora.</li></ol>
+<h3>2. Registar um campo</h3>
+<ol><li><b>Novo registo</b> → <b>Área</b> → <b>Andar e marcar os cantos</b>.</li>
+<li>Vá a um canto e toque em <b>Canto aqui</b>. A posição entra logo — não precisa de esperar.</li>
+<li>Ande pela borda e toque em <b>Canto aqui</b> em cada canto. Nos lados retos não é preciso marcar nada. Normalmente bastam 4–10 pontos.</li>
+<li>Não precisa de voltar ao primeiro canto: a área fecha sozinha.</li>
+<li><b>Terminar</b> → nome, grupo/localidade e, se quiser, <b>fotos</b> → <b>Guardar</b>. A área em hectares aparece na hora.</li>
+<li>Para lugares onde não pode ir: <b>Tocar no mapa</b> (não é medição GPS).</li></ol>
 <h3>3. Para medir bem</h3>
-<ul><li>Espere até o GPS (canto superior direito) mostrar <b>±5 m</b> ou menos (verde).</li>
-<li><b>Mantenha o ecrã ligado</b> e esta app aberta enquanto anda. Com o ecrã desligado ou noutra app, o GPS para.</li>
-<li>Árvores e casas pioram o sinal. Se puder, ande pelo lado aberto.</li>
-<li>O erro do GPS do telemóvel é de 3–10 m. Em campos pequenos o erro da área é maior. Para comparar, meça duas vezes.</li></ul>
-<h3>4. Sem rede</h3>
-<ul><li>Os registos ficam guardados no telemóvel (“por enviar”). Quando houver rede, com a app aberta, são enviados sozinhos.</li>
-<li>Sem rede a imagem de satélite não aparece (o Google não permite guardá-la). A app usa o <b>mapa simples</b>: grelha com escala, a sua posição e os registos.</li>
+<ul><li>Antes de marcar, veja o GPS no canto superior direito: <b>±5 m</b> ou menos (verde) é bom.</li>
+<li>Marcou mal? <b>Desfazer</b> apaga o último ponto.</li>
+<li>Árvores e casas pioram o sinal. O erro do GPS do telemóvel é de 3–10 m.</li></ul>
+<h3>4. Fotos</h3>
+<ul><li>Ao guardar, ou depois no registo, toque em <b>+</b> nas fotos. Pode tirar com a câmara ou escolher da galeria.</li>
+<li>As fotos são reduzidas para enviar depressa e também ficam “por enviar” sem rede.</li></ul>
+<h3>5. Sem rede</h3>
+<ul><li>Os registos e as fotos ficam no telemóvel (“por enviar”). Quando houver rede, com a app aberta, são enviados sozinhos.</li>
+<li>Sem rede a imagem de satélite não aparece (o Google não permite guardá-la). A app usa o <b>mapa simples</b>.</li>
 <li>No fim do dia, com rede, abra a app e veja se diz <b>Enviado</b>.</li></ul>
-<h3>5. Partilhar</h3>
+<h3>6. Partilhar e atualizar</h3>
 <ul><li>Todos os membros da equipa veem os registos de todos.</li>
-<li>Num registo: <b>Partilhar texto</b> (área + link do Google Maps para o WhatsApp) ou <b>Enviar KML</b> (ficheiro para Google Earth).</li>
-<li>Menu → <b>Exportar</b>: KML (Google Earth / My Maps), CSV (Excel), GeoJSON (QGIS).</li>
-<li>Menu → <b>Importar</b>: traga medições antigas em KML (por exemplo do GPS Fields Area Measure).</li></ul>`,
+<li>Num registo: <b>Partilhar</b> (texto + fotos para o WhatsApp) ou <b>KML</b> (Google Earth).</li>
+<li>Menu → <b>Exportar</b>: KML, CSV (Excel), GeoJSON (QGIS) ou ZIP com fotos.</li>
+<li>A app atualiza-se sozinha. Menu → <b>Procurar atualização</b> para verificar já.</li></ul>`,
+  en: `
+<h2>How to use</h2>
+<h3>1. Before going to the field (with signal)</h3>
+<ol><li>Open the app once with signal and sign in with Google. The menu should say <b>Ready to use offline</b>.</li>
+<li>In Chrome: menu ⋮ → <b>Add to Home screen</b>, to open it like an app.</li>
+<li>Turn on the phone’s location (high accuracy).</li></ol>
+<h3>2. Record a field</h3>
+<ol><li><b>New record</b> → <b>Area</b> → <b>Walk &amp; mark corners</b>.</li>
+<li>Go to a corner and tap <b>Corner here</b>. The position is added at once — no waiting.</li>
+<li>Walk along the edge and tap <b>Corner here</b> at each corner. Straight sides need nothing. Usually 4–10 points are enough.</li>
+<li>No need to go back to the first corner: the area closes by itself.</li>
+<li><b>Finish</b> → name, group/locality and, if you like, <b>photos</b> → <b>Save</b>. The area in hectares appears at once.</li>
+<li>For places you cannot reach: <b>Tap on the map</b> (not a GPS measurement).</li></ol>
+<h3>3. To measure well</h3>
+<ul><li>Before marking, check the GPS at the top right: <b>±5 m</b> or less (green) is good.</li>
+<li>Marked the wrong place? <b>Undo</b> removes the last point.</li>
+<li>Trees and buildings weaken the signal. Phone GPS error is 3–10 m.</li></ul>
+<h3>4. Photos</h3>
+<ul><li>When saving, or later in the record, tap <b>+</b> under photos. Take one with the camera or pick from the gallery.</li>
+<li>Photos are reduced so they upload quickly, and they also wait as “not sent” when offline.</li></ul>
+<h3>5. Without signal</h3>
+<ul><li>Records and photos stay on the phone (“not sent”). When there is signal and the app is open, they upload by themselves.</li>
+<li>Without signal the satellite image does not appear (Google does not allow storing it). The app uses the <b>simple map</b>.</li>
+<li>At the end of the day, open the app with signal and check that it says <b>Sent</b>.</li></ul>
+<h3>6. Sharing and updates</h3>
+<ul><li>Everyone in the team sees everyone’s records.</li>
+<li>In a record: <b>Share</b> (text + photos to WhatsApp) or <b>KML</b> (Google Earth).</li>
+<li>Menu → <b>Export</b>: KML, CSV (Excel), GeoJSON (QGIS) or ZIP with photos.</li>
+<li>The app updates itself. Menu → <b>Check for update</b> to check now.</li></ul>`,
   ja: `
 <h2>使い方</h2>
 <h3>1. 現場に行く前に(電波のある所で)</h3>
-<ol><li>電波のある所で一度アプリを開き、Googleでログインします。その後は圏外でも動きます。</li>
+<ol><li>電波のある所で一度アプリを開き、Googleでログインします。メニューに「<b>圏外で使う準備ができています</b>」と出ればOK。</li>
 <li>Chrome のメニュー ⋮ →「<b>ホーム画面に追加</b>」で、アプリのように開けます。</li>
 <li>スマホの位置情報をオン(高精度)にします。</li></ol>
-<h3>2. 区画(圃場・苗畑・ブロック)を記録する</h3>
-<ol><li>「<b>新しく記録</b>」→「<b>区画(面)</b>」。</li>
-<li><b>外周を歩く</b>:出発点で「<b>開始</b>」を押し、縁を歩いて出発点まで戻ります。点は自動で打たれます。</li>
-<li><b>角を記録</b>(長方形の圃場):角ごとに立ち止まり「<b>この角を記録</b>」。数秒分のGPSを平均します。</li>
-<li><b>地図をタップ</b>:立ち入れない場所だけ(GPSの実測ではありません)。</li>
-<li>「<b>終了</b>」→ 名前とグループ/地域を入れて「<b>保存</b>」。面積(ha)はその場で出ます。</li></ol>
+<h3>2. 圃場を記録する</h3>
+<ol><li>「<b>新しく記録</b>」→「<b>区画</b>」→「<b>歩いて角を追加</b>」。</li>
+<li>角に立って「<b>ここを角に</b>」をタップ。その場の位置がすぐ入ります(待ち時間はありません)。</li>
+<li>縁を歩き、角ごとに「<b>ここを角に</b>」。まっすぐな辺の途中は何もしなくてよく、ふつうは 4〜10 点で足ります。</li>
+<li>最初の角に戻る必要はありません。区画は自動で閉じます。</li>
+<li>「<b>終了</b>」→ 名前・グループ/地域、必要なら<b>写真</b> →「<b>保存</b>」。面積(ha)はその場で出ます。</li>
+<li>立ち入れない場所は「<b>地図をタップ</b>」で(GPSの実測ではありません)。</li></ol>
 <h3>3. 正確に測るには</h3>
-<ul><li>右上のGPSが <b>±5 m</b> 以下(緑)になるまで待ちます。</li>
-<li>歩いている間は<b>画面を点けたまま</b>、このアプリを開いたままにします。画面が消える・別アプリに切り替えるとGPSが止まります。</li>
-<li>木や建物の近くは精度が落ちます。開けた側を歩けるなら、そちらを歩きます。</li>
-<li>スマホのGPSの誤差は 3〜10 m です。小さい圃場ほど面積の誤差は大きくなります。比べたいときは2回測ります。</li></ul>
-<h3>4. 圏外のとき</h3>
-<ul><li>記録は端末に保存されます(「未送信」)。電波が戻り、アプリを開いていれば自動で送信されます。</li>
-<li>圏外では衛星写真は出ません(Google の規約で保存できないため)。<b>簡易地図</b>(方眼・縮尺・現在地・記録)で表示します。</li>
+<ul><li>打つ前に右上のGPSを見ます。<b>±5 m</b> 以下(緑)なら良好です。</li>
+<li>打ち間違えたら「<b>1つ戻す</b>」で最後の点を消せます。</li>
+<li>木や建物の近くは精度が落ちます。スマホのGPSの誤差は 3〜10 m です。</li></ul>
+<h3>4. 写真</h3>
+<ul><li>保存のとき、または後から記録を開いて、写真の <b>+</b> をタップ。カメラで撮るか、ギャラリーから選べます。</li>
+<li>写真は送りやすい大きさに縮めて保存します。圏外では「未送信」として端末に残ります。</li></ul>
+<h3>5. 圏外のとき</h3>
+<ul><li>記録と写真は端末に保存されます(「未送信」)。電波が戻り、アプリを開いていれば自動で送信されます。</li>
+<li>圏外では衛星写真は出ません(Google の規約で保存できないため)。<b>簡易地図</b>で表示します。</li>
 <li>1日の終わりに電波のある所でアプリを開き、「<b>送信済み</b>」になっているか確かめます。</li></ul>
-<h3>5. 共有</h3>
+<h3>6. 共有と更新</h3>
 <ul><li>チームの全員が、全員の記録を見られます。</li>
-<li>記録を開いて「<b>文章で共有</b>」(面積と Google マップのリンクを WhatsApp へ)、「<b>KMLを送る</b>」(Google Earth 用のファイル)。</li>
-<li>メニュー →「<b>書き出し</b>」:KML(Google Earth/マイマップ)、CSV(Excel)、GeoJSON(QGIS)。</li>
-<li>メニュー →「<b>読み込み</b>」:GPS Fields Area Measure などの KML を取り込めます。</li></ul>`
+<li>記録を開いて「<b>共有</b>」(文章と写真を WhatsApp へ)、「<b>KML</b>」(Google Earth 用)。</li>
+<li>メニュー →「<b>書き出し</b>」:KML、CSV(Excel)、GeoJSON(QGIS)、写真入りの ZIP。</li>
+<li>アプリは自動で更新されます。すぐ確かめたいときはメニュー →「<b>アップデートを確認</b>」。</li></ul>`
 };
 
 let lang = 'pt';
 
+function pick(l) { return LANGS.includes(l) ? l : null; }
+
 export function initLang(saved) {
-  if (saved === 'pt' || saved === 'ja') lang = saved;
-  else lang = (navigator.language || '').toLowerCase().startsWith('ja') ? 'ja' : 'pt';
+  const nav = (navigator.language || '').toLowerCase();
+  lang = pick(saved) || (nav.startsWith('ja') ? 'ja' : nav.startsWith('en') ? 'en' : 'pt');
   document.documentElement.lang = lang;
 }
 
 export function getLang() { return lang; }
 
 export function setLang(l) {
-  lang = l === 'ja' ? 'ja' : 'pt';
+  lang = pick(l) || 'pt';
   document.documentElement.lang = lang;
 }
+
+/** 日付・数値の書式に使うロケール。 */
+export function locale() { return lang === 'ja' ? 'ja-JP' : lang === 'en' ? 'en-GB' : 'pt-PT'; }
 
 export function t(key, vars) {
   let s = (DICT[lang] && DICT[lang][key]) ?? DICT.pt[key] ?? key;
@@ -369,7 +595,7 @@ export function applyI18n(root = document) {
 
 export function helpHtml() { return HELP[lang] || HELP.pt; }
 
-/** 分類の表示名(どちらの言語でも)または key から key を返す。読み込み用。見つからなければ ''。 */
+/** 分類の表示名(どの言語でも)または key から key を返す。読み込み用。見つからなければ ''。 */
 export function categoryKeyFromLabel(label) {
   const s = String(label || '').trim().toLowerCase();
   if (!s) return '';
@@ -381,4 +607,4 @@ export function categoryKeyFromLabel(label) {
   return '';
 }
 
-export const _DICT = DICT;   // テストで両言語のキーが揃っているか確かめる用
+export const _DICT = DICT;   // テストで全言語のキーが揃っているか確かめる用

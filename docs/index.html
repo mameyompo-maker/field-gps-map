@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#1b5e20">
-<meta name="description" content="Registo GPS de pontos, áreas e percursos no campo — funciona sem rede e partilha com a equipa.">
+<meta name="theme-color" content="#fbfcfd" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0b0d12" media="(prefers-color-scheme: dark)">
+<meta name="description" content="Registo GPS de campos, linhas e pontos — funciona sem rede e partilha com a equipa.">
 <title>Field GPS Map</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
@@ -17,7 +18,7 @@
 </head>
 <body>
 
-<!-- Ícones (SVG próprios — os emojis mudam de tamanho de aparelho para aparelho) -->
+<!-- アイコン(自前の SVG。絵文字は端末ごとに大きさ・見た目が変わるので使わない) -->
 <svg id="iconDefs" width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-menu" viewBox="0 0 24 24"><path fill="currentColor" d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></symbol>
@@ -40,118 +41,123 @@
   <symbol id="i-user" viewBox="0 0 24 24"><path fill="currentColor" d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9zm0 2c-3.3 0-9 1.7-9 5v2h18v-2c0-3.3-5.7-5-9-5z"/></symbol>
   <symbol id="i-cloud-ok" viewBox="0 0 24 24"><path fill="currentColor" d="M19.4 10A7 7 0 0 0 6.3 8 5.5 5.5 0 0 0 6.5 19h12.7a4.5 4.5 0 0 0 .2-9zM10 17l-3.5-3.5 1.4-1.4 2.1 2.1 5.1-5.1 1.4 1.4z"/></symbol>
   <symbol id="i-cloud-off" viewBox="0 0 24 24"><path fill="currentColor" d="M19.4 10A7 7 0 0 0 9.1 4.6l1.5 1.5A5 5 0 0 1 17.5 11v.5H19a2.5 2.5 0 0 1 1.7 4.3l1.4 1.5A4.5 4.5 0 0 0 19.4 10zM3 5.3 5.8 8A5.5 5.5 0 0 0 6.5 19h11.2l2 2 1.3-1.3L4.3 4zM7.7 10l7 7H6.5a3.5 3.5 0 0 1 0-7z"/></symbol>
-  <symbol id="i-pause" viewBox="0 0 24 24"><path fill="currentColor" d="M6 5h4v14H6zm8 0h4v14h-4z"/></symbol>
-  <symbol id="i-play" viewBox="0 0 24 24"><path fill="currentColor" d="M7 4v16l13-8z"/></symbol>
   <symbol id="i-undo" viewBox="0 0 24 24"><path fill="currentColor" d="M12.5 8c-2.7 0-5.1 1-7 2.6L2 7v9h9l-3.6-3.6A8 8 0 0 1 20.1 16l2.3-.8A10.5 10.5 0 0 0 12.5 8z"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path fill="currentColor" d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></symbol>
   <symbol id="i-edit" viewBox="0 0 24 24"><path fill="currentColor" d="M3 17.3V21h3.8L17.8 9.9l-3.7-3.7zM20.7 7a1 1 0 0 0 0-1.4l-2.3-2.3a1 1 0 0 0-1.4 0l-1.8 1.8 3.7 3.7z"/></symbol>
   <symbol id="i-archive" viewBox="0 0 24 24"><path fill="currentColor" d="M20.5 5.2 19.1 3.5A1.5 1.5 0 0 0 18 3H6a1.5 1.5 0 0 0-1.2.5L3.5 5.2A2 2 0 0 0 3 6.5V19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6.5a2 2 0 0 0-.5-1.3zM12 17.5 6.5 12H10v-2h4v2h3.5zM5.1 5l.8-1h12l.9 1z"/></symbol>
   <symbol id="i-gmaps" viewBox="0 0 24 24"><path fill="currentColor" d="M20.5 3 15 5.1 9 3 3.5 4.9A.5.5 0 0 0 3 5.4V20.5a.5.5 0 0 0 .7.5L9 18.9l6 2.1 5.5-1.9a.5.5 0 0 0 .5-.5V3.5a.5.5 0 0 0-.5-.5zM15 19l-6-2.1V5l6 2.1z"/></symbol>
   <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="currentColor"/><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+  <symbol id="i-camera" viewBox="0 0 24 24"><path fill="currentColor" d="M9.4 4 7.6 6H4.5A2.5 2.5 0 0 0 2 8.5v10A2.5 2.5 0 0 0 4.5 21h15a2.5 2.5 0 0 0 2.5-2.5v-10A2.5 2.5 0 0 0 19.5 6h-3.1l-1.8-2zM12 17.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-2a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path fill="currentColor" d="M15.4 5.4 14 4l-8 8 8 8 1.4-1.4L8.8 12z"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path fill="currentColor" d="M8.6 5.4 10 4l8 8-8 8-1.4-1.4 6.6-6.6z"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path fill="currentColor" d="M17.7 6.3A8 8 0 1 0 19.7 14h-2.1a6 6 0 1 1-1.4-6.2L13 11h7V4z"/></symbol>
+  <symbol id="i-globe" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm6.9 6h-3a15.7 15.7 0 0 0-1.4-3.6A8 8 0 0 1 18.9 8zM12 4c.8 1.2 1.5 2.5 1.9 4h-3.8c.4-1.5 1.1-2.8 1.9-4zM4.3 14a8.2 8.2 0 0 1 0-4h3.4a16.5 16.5 0 0 0 0 4zm.8 2h3a15.7 15.7 0 0 0 1.4 3.6A8 8 0 0 1 5.1 16zm3-8h-3a8 8 0 0 1 4.4-3.6C8.9 5.5 8.4 6.7 8.1 8zM12 20c-.8-1.2-1.5-2.5-1.9-4h3.8c-.4 1.5-1.1 2.8-1.9 4zm2.3-6H9.7a14.7 14.7 0 0 1 0-4h4.6a14.7 14.7 0 0 1 0 4zm.3 5.6c.6-1.1 1.1-2.3 1.4-3.6h3a8 8 0 0 1-4.4 3.6zm1.7-5.6a16.5 16.5 0 0 0 0-4h3.4a8.2 8.2 0 0 1 0 4z"/></symbol>
+  <symbol id="i-offline" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2 3 6v6c0 5.3 3.8 9.7 9 10.9 5.2-1.2 9-5.6 9-10.9V6zm-1.5 14.5-4-4 1.4-1.4 2.6 2.6 5.6-5.6 1.4 1.4z"/></symbol>
 </svg>
 
-<!-- ============================== Ecrã de entrada ============================== -->
+<!-- ============================== 入口の画面 ============================== -->
 <section id="loginScreen" class="screen" hidden>
-  <div class="screen-card">
-    <img src="icon-192.png" alt="" class="app-logo" width="72" height="72">
+  <div class="screen-card fade-up">
+    <img src="icon-192.png" alt="" class="app-logo" width="76" height="76">
     <h1>Field GPS Map</h1>
-    <p data-i18n="login.lead"></p>
+    <p class="lead" data-i18n="login.lead"></p>
     <ul class="login-points">
-      <li data-i18n="login.p1"></li>
-      <li data-i18n="login.p2"></li>
-      <li data-i18n="login.p3"></li>
+      <li><svg class="ic"><use href="#i-offline"/></svg><span data-i18n="login.p1"></span></li>
+      <li><svg class="ic"><use href="#i-corner"/></svg><span data-i18n="login.p2"></span></li>
+      <li><svg class="ic"><use href="#i-camera"/></svg><span data-i18n="login.p3"></span></li>
     </ul>
-    <p id="loginStatus" class="muted" aria-live="polite"></p>
-    <button id="btnSignIn" class="btn-primary btn-wide" type="button" data-i18n="login.google"></button>
-    <button id="btnDemo" class="btn-text btn-wide" type="button" data-i18n="login.demo"></button>
-    <div class="lang-switch" role="group" aria-label="Idioma / 言語">
+    <p id="loginStatus" class="muted small" aria-live="polite"></p>
+    <button id="btnSignIn" class="btn-primary btn-wide tappable" type="button" data-i18n="login.google"></button>
+    <button id="btnDemo" class="btn-ghost btn-wide tappable" type="button" data-i18n="login.demo"></button>
+    <div class="lang-switch" role="group" aria-label="Língua / Language / 言語">
       <button type="button" data-lang="pt">Português</button>
+      <button type="button" data-lang="en">English</button>
       <button type="button" data-lang="ja">日本語</button>
     </div>
   </div>
 </section>
 
 <section id="deniedScreen" class="screen" hidden>
-  <div class="screen-card">
+  <div class="screen-card fade-up">
     <h1 data-i18n="denied.title"></h1>
     <p id="deniedText"></p>
     <p class="muted" data-i18n="denied.how"></p>
-    <button id="btnRecheck" class="btn-primary btn-wide" type="button" data-i18n="denied.recheck"></button>
-    <button id="btnSignOutDenied" class="btn-text btn-wide" type="button" data-i18n="menu.signout"></button>
+    <button id="btnRecheck" class="btn-primary btn-wide tappable" type="button" data-i18n="denied.recheck"></button>
+    <button id="btnSignOutDenied" class="btn-ghost btn-wide tappable" type="button" data-i18n="menu.signout"></button>
   </div>
 </section>
 
-<!-- ============================== Ecrã principal ============================== -->
+<!-- ============================== メインの画面 ============================== -->
 <main id="mainScreen" hidden>
   <div id="mapGoogle" class="map-layer"></div>
   <div id="mapSimple" class="map-layer" hidden><canvas id="simpleCanvas"></canvas></div>
 
   <header class="topbar">
-    <button id="btnMenu" class="chip-btn icon-only" type="button" data-i18n-title="menu.open"><svg class="ic"><use href="#i-menu"/></svg></button>
-    <button id="btnList" class="chip-btn" type="button"><svg class="ic"><use href="#i-list"/></svg><span id="listCount">0</span></button>
+    <button id="btnMenu" class="glass-btn icon-only tappable" type="button" data-i18n-title="menu.open"><svg class="ic"><use href="#i-menu"/></svg><span id="updDot" class="upd-dot" hidden></span></button>
+    <button id="btnList" class="glass-btn tappable" type="button"><svg class="ic"><use href="#i-list"/></svg><span id="listCount">0</span></button>
     <span class="spacer"></span>
-    <button id="gpsChip" class="chip gps-wait" type="button"><svg class="ic"><use href="#i-target"/></svg><span id="gpsText">GPS…</span></button>
-    <button id="syncChip" class="chip" type="button" hidden><svg class="ic"><use id="syncIcon" href="#i-cloud-ok"/></svg><span id="syncText"></span></button>
+    <button id="gpsChip" class="glass-btn chip gps-wait tappable" type="button"><span class="dot"></span><span id="gpsText">GPS…</span></button>
+    <button id="syncChip" class="glass-btn chip tappable" type="button" hidden><svg class="ic"><use id="syncIcon" href="#i-cloud-ok"/></svg><span id="syncText"></span></button>
   </header>
 
   <div id="banner" class="banner" hidden></div>
 
   <div class="map-tools">
-    <button id="btnLayers" class="round-btn" type="button" data-i18n-title="map.layers"><svg class="ic"><use href="#i-layers"/></svg></button>
-    <button id="btnZoomIn" class="round-btn" type="button" aria-label="+"><svg class="ic"><use href="#i-plus"/></svg></button>
-    <button id="btnZoomOut" class="round-btn" type="button" aria-label="-"><svg class="ic"><use href="#i-minus"/></svg></button>
-    <button id="btnLocate" class="round-btn" type="button" data-i18n-title="map.locate"><svg class="ic"><use href="#i-locate"/></svg></button>
+    <button id="btnLayers" class="round-btn tappable" type="button" data-i18n-title="map.layers"><svg class="ic"><use href="#i-layers"/></svg></button>
+    <button id="btnZoomIn" class="round-btn tappable" type="button" aria-label="+"><svg class="ic"><use href="#i-plus"/></svg></button>
+    <button id="btnZoomOut" class="round-btn tappable" type="button" aria-label="-"><svg class="ic"><use href="#i-minus"/></svg></button>
+    <button id="btnLocate" class="round-btn tappable" type="button" data-i18n-title="map.locate"><svg class="ic"><use href="#i-locate"/></svg></button>
   </div>
 
   <div id="mapModeTag" class="map-mode-tag" hidden></div>
 
-  <button id="fabNew" class="fab" type="button"><svg class="ic"><use href="#i-plus"/></svg><span data-i18n="new.button"></span></button>
+  <button id="fabNew" class="fab tappable" type="button"><svg class="ic"><use href="#i-plus"/></svg><span data-i18n="new.button"></span></button>
 
-  <!-- Painel de gravação -->
+  <!-- 記録中のパネル -->
   <section id="recPanel" class="sheet rec-panel" hidden aria-live="polite">
+    <div class="grabber"></div>
     <div class="rec-head">
-      <svg class="ic rec-kind-ic"><use id="recKindIcon" href="#i-polygon"/></svg>
-      <div class="rec-title"><strong id="recTitle"></strong><span id="recHint" class="muted"></span></div>
-      <span id="recDot" class="rec-dot" hidden></span>
+      <span class="kind-badge"><svg class="ic"><use id="recKindIcon" href="#i-polygon"/></svg></span>
+      <div class="rec-title"><strong id="recTitle"></strong><span id="recHint"></span></div>
+      <button id="btnRecCancel" class="icon-btn tappable" type="button" data-i18n-title="rec.cancel"><svg class="ic"><use href="#i-close"/></svg></button>
     </div>
     <div class="rec-stats">
-      <div><span class="stat-label" data-i18n="rec.vertices"></span><strong id="stVertices">0</strong></div>
+      <div class="stat-main"><span class="stat-label" data-i18n="rec.vertices"></span><strong id="stVertices">0</strong><small id="stGoal" class="muted"></small></div>
       <div id="stAreaBox"><span class="stat-label" data-i18n="rec.area"></span><strong id="stArea">—</strong></div>
       <div><span class="stat-label" id="stLenLabel" data-i18n="rec.perimeter"></span><strong id="stLen">—</strong></div>
       <div><span class="stat-label" data-i18n="rec.accuracy"></span><strong id="stAcc">—</strong></div>
     </div>
-    <div id="recProgress" class="rec-progress" hidden><div id="recProgressBar"></div><span id="recProgressText"></span></div>
     <p id="recWarn" class="rec-warn" hidden></p>
+    <button id="btnRecMark" class="btn-mark tappable" type="button" hidden><svg class="ic"><use id="recMarkIcon" href="#i-corner"/></svg><span id="btnRecMarkText"></span></button>
     <div class="rec-buttons">
-      <button id="btnRecMark" class="btn-primary" type="button" hidden><svg class="ic"><use href="#i-corner"/></svg><span id="btnRecMarkText"></span></button>
-      <button id="btnRecPause" class="btn-secondary" type="button" hidden><svg class="ic"><use id="recPauseIcon" href="#i-pause"/></svg><span id="btnRecPauseText"></span></button>
-      <button id="btnRecUndo" class="btn-secondary" type="button"><svg class="ic"><use href="#i-undo"/></svg><span data-i18n="rec.undo"></span></button>
-      <button id="btnRecFinish" class="btn-primary" type="button"><svg class="ic"><use href="#i-check"/></svg><span id="btnRecFinishText" data-i18n="rec.finish"></span></button>
-      <button id="btnRecCancel" class="btn-text danger" type="button" data-i18n="rec.cancel"></button>
+      <button id="btnRecUndo" class="btn-secondary tappable" type="button"><svg class="ic"><use href="#i-undo"/></svg><span data-i18n="rec.undo"></span></button>
+      <button id="btnRecFinish" class="btn-dark tappable" type="button"><svg class="ic"><use href="#i-check"/></svg><span id="btnRecFinishText" data-i18n="rec.finish"></span></button>
     </div>
   </section>
 
-  <!-- Escolher o que registar -->
+  <!-- 何を記録するか -->
   <section id="newSheet" class="sheet" hidden>
-    <div class="sheet-head"><h2 id="newSheetTitle" data-i18n="new.title"></h2><button class="icon-btn" data-close type="button" aria-label="×"><svg class="ic"><use href="#i-close"/></svg></button></div>
+    <div class="grabber"></div>
+    <div class="sheet-head"><h2 id="newSheetTitle" data-i18n="new.title"></h2><button class="icon-btn tappable" data-close type="button" aria-label="×"><svg class="ic"><use href="#i-close"/></svg></button></div>
     <div id="newKinds" class="choice-grid">
-      <button type="button" class="choice" data-kind="polygon"><svg class="ic"><use href="#i-polygon"/></svg><strong data-i18n="kind.polygon"></strong><span data-i18n="kind.polygon.d"></span></button>
-      <button type="button" class="choice" data-kind="line"><svg class="ic"><use href="#i-line"/></svg><strong data-i18n="kind.line"></strong><span data-i18n="kind.line.d"></span></button>
-      <button type="button" class="choice" data-kind="point"><svg class="ic"><use href="#i-point"/></svg><strong data-i18n="kind.point"></strong><span data-i18n="kind.point.d"></span></button>
+      <button type="button" class="choice tappable" data-kind="polygon"><span class="choice-ic"><svg class="ic"><use href="#i-polygon"/></svg></span><strong data-i18n="kind.polygon"></strong><span data-i18n="kind.polygon.d"></span></button>
+      <button type="button" class="choice tappable" data-kind="line"><span class="choice-ic"><svg class="ic"><use href="#i-line"/></svg></span><strong data-i18n="kind.line"></strong><span data-i18n="kind.line.d"></span></button>
+      <button type="button" class="choice tappable" data-kind="point"><span class="choice-ic"><svg class="ic"><use href="#i-point"/></svg></span><strong data-i18n="kind.point"></strong><span data-i18n="kind.point.d"></span></button>
     </div>
     <div id="newMethods" class="choice-list" hidden></div>
   </section>
 
-  <!-- Lista -->
+  <!-- 一覧 -->
   <section id="listPanel" class="sheet list-panel" hidden>
-    <div class="sheet-head"><h2 data-i18n="list.title"></h2><button class="icon-btn" data-close type="button" aria-label="×"><svg class="ic"><use href="#i-close"/></svg></button></div>
+    <div class="grabber"></div>
+    <div class="sheet-head"><h2 data-i18n="list.title"></h2><button class="icon-btn tappable" data-close type="button" aria-label="×"><svg class="ic"><use href="#i-close"/></svg></button></div>
     <div class="list-filters">
       <input id="listSearch" type="search" data-i18n-ph="list.search" autocomplete="off">
-      <div class="seg" id="listKind" role="group">
-        <button type="button" data-k="" class="on" data-i18n="list.all"></button>
-        <button type="button" data-k="polygon" data-i18n="list.areas"></button>
-        <button type="button" data-k="line" data-i18n="list.lines"></button>
-        <button type="button" data-k="point" data-i18n="list.points"></button>
+      <div class="chips" id="listKind" role="group">
+        <button type="button" data-k="" class="chip-sel on" data-i18n="list.all"></button>
+        <button type="button" data-k="polygon" class="chip-sel" data-i18n="list.areas"></button>
+        <button type="button" data-k="line" class="chip-sel" data-i18n="list.lines"></button>
+        <button type="button" data-k="point" class="chip-sel" data-i18n="list.points"></button>
       </div>
       <div class="list-row2">
         <label class="check"><input id="listMine" type="checkbox"> <span data-i18n="list.mine"></span></label>
@@ -162,60 +168,92 @@
           <option value="area" data-i18n="list.sort.area"></option>
         </select>
       </div>
-      <p id="listSummary" class="muted small"></p>
+      <p id="listSummary" class="list-summary"></p>
     </div>
     <ul id="listItems" class="feature-list"></ul>
   </section>
 
-  <!-- Detalhe -->
-  <section id="detailSheet" class="sheet" hidden>
-    <div class="sheet-head"><h2 id="dTitle"></h2><button class="icon-btn" data-close type="button" aria-label="×"><svg class="ic"><use href="#i-close"/></svg></button></div>
-    <p id="dSub" class="muted"></p>
+  <!-- 詳細 -->
+  <section id="detailSheet" class="sheet detail-sheet" hidden>
+    <div class="grabber"></div>
+    <div class="sheet-head"><div class="detail-title"><h2 id="dTitle"></h2><p id="dSub" class="muted small"></p></div><button class="icon-btn tappable" data-close type="button" aria-label="×"><svg class="ic"><use href="#i-close"/></svg></button></div>
     <div id="dStats" class="detail-stats"></div>
-    <dl id="dMeta" class="detail-meta"></dl>
-    <div class="detail-actions">
-      <button id="dZoom" type="button" class="btn-secondary"><svg class="ic"><use href="#i-target"/></svg><span data-i18n="d.zoom"></span></button>
-      <a id="dGmaps" class="btn-secondary" target="_blank" rel="noopener"><svg class="ic"><use href="#i-gmaps"/></svg><span data-i18n="d.gmaps"></span></a>
-      <button id="dShare" type="button" class="btn-secondary"><svg class="ic"><use href="#i-share"/></svg><span data-i18n="d.share"></span></button>
-      <button id="dShareKml" type="button" class="btn-secondary"><svg class="ic"><use href="#i-download"/></svg><span data-i18n="d.kml"></span></button>
-      <button id="dEdit" type="button" class="btn-secondary"><svg class="ic"><use href="#i-edit"/></svg><span data-i18n="d.edit"></span></button>
-      <button id="dArchive" type="button" class="btn-text danger"><svg class="ic"><use href="#i-archive"/></svg><span data-i18n="d.archive"></span></button>
+    <div class="photo-strip" id="dPhotos"></div>
+    <div class="action-row">
+      <button id="dZoom" type="button" class="action tappable"><span><svg class="ic"><use href="#i-target"/></svg></span><small data-i18n="d.zoom"></small></button>
+      <a id="dGmaps" class="action tappable" target="_blank" rel="noopener"><span><svg class="ic"><use href="#i-gmaps"/></svg></span><small data-i18n="d.gmaps"></small></a>
+      <button id="dShare" type="button" class="action tappable"><span><svg class="ic"><use href="#i-share"/></svg></span><small data-i18n="d.share"></small></button>
+      <button id="dShareKml" type="button" class="action tappable"><span><svg class="ic"><use href="#i-download"/></svg></span><small data-i18n="d.kml"></small></button>
+      <button id="dEdit" type="button" class="action tappable"><span><svg class="ic"><use href="#i-edit"/></svg></span><small data-i18n="d.edit"></small></button>
     </div>
+    <dl id="dMeta" class="detail-meta"></dl>
+    <button id="dArchive" type="button" class="btn-ghost danger btn-wide tappable"><svg class="ic"><use href="#i-archive"/></svg><span data-i18n="d.archive"></span></button>
   </section>
 </main>
 
-<!-- ============================== Diálogos ============================== -->
+<!-- 写真を選ぶ(カメラかギャラリー。端末が選ばせてくれる) -->
+<input id="photoInput" type="file" accept="image/*" multiple hidden>
+
+<!-- ============================== ダイアログ ============================== -->
 <dialog id="saveDialog" class="dlg">
   <form method="dialog" id="saveForm">
     <h2 id="saveTitle" data-i18n="save.title"></h2>
     <p id="saveSummary" class="save-summary"></p>
     <p id="saveWarn" class="rec-warn" hidden></p>
     <label><span data-i18n="save.name"></span><input id="fName" required maxlength="120" autocomplete="off"></label>
-    <label><span data-i18n="save.category"></span><select id="fCategory"></select></label>
+    <div class="field"><span class="field-label" data-i18n="save.category"></span><div id="fCatChips" class="chips wrap"></div></div>
     <label><span data-i18n="save.group"></span><input id="fGroup" list="groupList" maxlength="80" autocomplete="off" data-i18n-ph="save.group.ph"></label>
     <datalist id="groupList"></datalist>
-    <label><span data-i18n="save.notes"></span><textarea id="fNotes" rows="3" maxlength="2000"></textarea></label>
+    <div class="field" id="savePhotosBox"><span class="field-label" data-i18n="save.photos"></span><div id="savePhotos" class="photo-grid"></div></div>
+    <label><span data-i18n="save.notes"></span><textarea id="fNotes" rows="2" maxlength="2000"></textarea></label>
     <div class="dlg-buttons">
-      <button type="button" id="saveCancel" class="btn-text" data-i18n="common.back"></button>
-      <button type="submit" id="saveOk" class="btn-primary" data-i18n="save.ok"></button>
+      <button type="button" id="saveCancel" class="btn-ghost tappable" data-i18n="common.back"></button>
+      <button type="submit" id="saveOk" class="btn-primary tappable" data-i18n="save.ok"></button>
     </div>
   </form>
 </dialog>
 
+<dialog id="viewerDialog" class="viewer">
+  <img id="viewerImg" alt="">
+  <button type="button" id="viewerPrev" class="viewer-nav prev" aria-label="&lt;"><svg class="ic"><use href="#i-left"/></svg></button>
+  <button type="button" id="viewerNext" class="viewer-nav next" aria-label="&gt;"><svg class="ic"><use href="#i-right"/></svg></button>
+  <div class="viewer-bar">
+    <span id="viewerCaption"></span>
+    <button type="button" id="viewerRemove" class="viewer-btn" data-i18n-title="photo.remove"><svg class="ic"><use href="#i-archive"/></svg></button>
+    <button type="button" class="viewer-btn" data-close data-i18n-title="common.close"><svg class="ic"><use href="#i-close"/></svg></button>
+  </div>
+</dialog>
+
 <dialog id="menuDialog" class="dlg menu-dlg">
-  <div class="menu-user"><svg class="ic"><use href="#i-user"/></svg><div><strong id="menuName"></strong><span id="menuEmail" class="muted small"></span></div></div>
+  <div class="menu-user"><span class="avatar"><svg class="ic"><use href="#i-user"/></svg></span><div><strong id="menuName"></strong><span id="menuEmail" class="muted small"></span></div></div>
+  <div class="status-card" id="statusCard">
+    <div id="stOffline" class="status-row"><svg class="ic"><use href="#i-offline"/></svg><span></span></div>
+    <div id="stPending" class="status-row"><svg class="ic"><use href="#i-cloud-ok"/></svg><span></span></div>
+    <div id="stLast" class="status-row muted small"></div>
+  </div>
   <nav class="menu-items">
     <button type="button" data-act="list"><svg class="ic"><use href="#i-list"/></svg><span data-i18n="menu.list"></span></button>
+    <button type="button" data-act="sync"><svg class="ic"><use href="#i-cloud-ok"/></svg><span data-i18n="menu.sync"></span></button>
     <button type="button" data-act="export"><svg class="ic"><use href="#i-download"/></svg><span data-i18n="menu.export"></span></button>
     <button type="button" data-act="import"><svg class="ic"><use href="#i-upload"/></svg><span data-i18n="menu.import"></span></button>
+    <button type="button" data-act="lang"><svg class="ic"><use href="#i-globe"/></svg><span data-i18n="menu.lang"></span></button>
     <button type="button" data-act="settings"><svg class="ic"><use href="#i-settings"/></svg><span data-i18n="menu.settings"></span></button>
     <button type="button" data-act="help"><svg class="ic"><use href="#i-help"/></svg><span data-i18n="menu.help"></span></button>
-    <button type="button" data-act="lang"><svg class="ic"><use href="#i-layers"/></svg><span data-i18n="menu.lang"></span></button>
-    <button type="button" data-act="sync"><svg class="ic"><use href="#i-cloud-ok"/></svg><span id="menuSyncText" data-i18n="menu.sync"></span></button>
+    <button type="button" data-act="update"><svg class="ic"><use href="#i-refresh"/></svg><span data-i18n="menu.update"></span><span id="menuUpdDot" class="upd-dot inline" hidden></span></button>
     <button type="button" data-act="signout" class="danger"><svg class="ic"><use href="#i-user"/></svg><span id="menuSignoutText" data-i18n="menu.signout"></span></button>
   </nav>
   <p class="muted small menu-version" id="menuVersion"></p>
-  <div class="dlg-buttons"><button type="button" class="btn-text" data-close data-i18n="common.close"></button></div>
+  <div class="dlg-buttons"><button type="button" class="btn-ghost tappable" data-close data-i18n="common.close"></button></div>
+</dialog>
+
+<dialog id="langDialog" class="dlg">
+  <h2 data-i18n="set.lang"></h2>
+  <nav class="menu-items lang-list">
+    <button type="button" data-lang="pt"><svg class="ic"><use href="#i-check"/></svg><span>Português</span></button>
+    <button type="button" data-lang="en"><svg class="ic"><use href="#i-check"/></svg><span>English</span></button>
+    <button type="button" data-lang="ja"><svg class="ic"><use href="#i-check"/></svg><span>日本語</span></button>
+  </nav>
+  <div class="dlg-buttons"><button type="button" class="btn-ghost tappable" data-close data-i18n="common.close"></button></div>
 </dialog>
 
 <dialog id="exportDialog" class="dlg">
@@ -229,39 +267,33 @@
   </label>
   <p id="expCount" class="muted small"></p>
   <div class="export-list">
-    <button type="button" data-fmt="kml"><strong>KML</strong><span data-i18n="exp.kml"></span></button>
-    <button type="button" data-fmt="geojson"><strong>GeoJSON</strong><span data-i18n="exp.geojson"></span></button>
-    <button type="button" data-fmt="csv"><strong>CSV</strong><span data-i18n="exp.csv"></span></button>
-    <button type="button" data-fmt="zip"><strong>ZIP</strong><span data-i18n="exp.zip"></span></button>
+    <button type="button" data-fmt="kml" class="tappable"><strong>KML</strong><span data-i18n="exp.kml"></span></button>
+    <button type="button" data-fmt="geojson" class="tappable"><strong>GeoJSON</strong><span data-i18n="exp.geojson"></span></button>
+    <button type="button" data-fmt="csv" class="tappable"><strong>CSV</strong><span data-i18n="exp.csv"></span></button>
+    <button type="button" data-fmt="zip" class="tappable"><strong>ZIP</strong><span data-i18n="exp.zip"></span></button>
   </div>
-  <div class="dlg-buttons"><button type="button" class="btn-text" data-close data-i18n="common.close"></button></div>
+  <div class="dlg-buttons"><button type="button" class="btn-ghost tappable" data-close data-i18n="common.close"></button></div>
 </dialog>
 
 <dialog id="importDialog" class="dlg">
   <h2 data-i18n="imp.title"></h2>
-  <p data-i18n="imp.lead"></p>
+  <p class="small" data-i18n="imp.lead"></p>
   <input id="impFile" type="file" accept=".kml,.kmz,.geojson,.json,application/vnd.google-earth.kml+xml,application/geo+json">
   <div id="impPreview" class="muted small"></div>
   <label><span data-i18n="save.group"></span><input id="impGroup" list="groupList" maxlength="80" autocomplete="off"></label>
   <div class="dlg-buttons">
-    <button type="button" class="btn-text" data-close data-i18n="common.cancel"></button>
-    <button type="button" id="impOk" class="btn-primary" disabled data-i18n="imp.ok"></button>
+    <button type="button" class="btn-ghost tappable" data-close data-i18n="common.cancel"></button>
+    <button type="button" id="impOk" class="btn-primary tappable" disabled data-i18n="imp.ok"></button>
   </div>
 </dialog>
 
 <dialog id="settingsDialog" class="dlg">
   <h2 data-i18n="set.title"></h2>
   <label><span data-i18n="set.lang"></span>
-    <select id="sLang"><option value="pt">Português</option><option value="ja">日本語</option></select></label>
+    <select id="sLang"><option value="pt">Português</option><option value="en">English</option><option value="ja">日本語</option></select></label>
   <label><span data-i18n="set.maxAcc"></span>
     <select id="sMaxAcc"><option>5</option><option>8</option><option>10</option><option>15</option><option>20</option><option>30</option></select>
     <small class="muted" data-i18n="set.maxAcc.d"></small></label>
-  <label><span data-i18n="set.minDist"></span>
-    <select id="sMinDist"><option>1</option><option>2</option><option>3</option><option>5</option><option>10</option></select>
-    <small class="muted" data-i18n="set.minDist.d"></small></label>
-  <label><span data-i18n="set.avg"></span>
-    <select id="sAvg"><option>3</option><option>5</option><option>10</option><option>15</option><option>30</option></select>
-    <small class="muted" data-i18n="set.avg.d"></small></label>
   <label><span data-i18n="set.mapMode"></span>
     <select id="sMapMode">
       <option value="auto" data-i18n="set.mapMode.auto"></option>
@@ -276,21 +308,21 @@
       <option value="terrain" data-i18n="set.mapType.terrain"></option>
     </select></label>
   <div class="dlg-buttons">
-    <button type="button" class="btn-text" data-close data-i18n="common.cancel"></button>
-    <button type="button" id="sOk" class="btn-primary" data-i18n="common.save"></button>
+    <button type="button" class="btn-ghost tappable" data-close data-i18n="common.cancel"></button>
+    <button type="button" id="sOk" class="btn-primary tappable" data-i18n="common.save"></button>
   </div>
 </dialog>
 
 <dialog id="helpDialog" class="dlg help-dlg">
   <div id="helpBody"></div>
-  <div class="dlg-buttons"><button type="button" class="btn-primary" data-close data-i18n="common.close"></button></div>
+  <div class="dlg-buttons"><button type="button" class="btn-primary tappable" data-close data-i18n="common.close"></button></div>
 </dialog>
 
 <dialog id="confirmDialog" class="dlg">
   <p id="confirmText"></p>
   <div class="dlg-buttons">
-    <button type="button" id="confirmNo" class="btn-text"></button>
-    <button type="button" id="confirmYes" class="btn-primary"></button>
+    <button type="button" id="confirmNo" class="btn-ghost tappable"></button>
+    <button type="button" id="confirmYes" class="btn-primary tappable"></button>
   </div>
 </dialog>
 
@@ -300,21 +332,28 @@
   <div class="screen-card">
     <h1 data-i18n="boot.title"></h1>
     <p id="bootErrorText"></p>
-    <button type="button" class="btn-primary btn-wide" onclick="location.reload()" data-i18n="boot.retry"></button>
-    <button type="button" id="btnDemo2" class="btn-text btn-wide" data-i18n="login.demo"></button>
+    <button type="button" class="btn-primary btn-wide tappable" onclick="location.reload()" data-i18n="boot.retry"></button>
+    <button type="button" id="btnDemo2" class="btn-ghost btn-wide tappable" data-i18n="login.demo"></button>
   </div>
 </div>
 
 <script type="module" src="app.js"></script>
 <script>
-  // Atualização automática: quando um novo sw.js toma conta, recarrega uma vez.
-  // Não recarrega durante uma gravação (o app.js marca window.__fgmRecording).
+  // 自動更新(jatlog_offline と同じ考え方):
+  //   新しい sw.js は skipWaiting() で即座に有効になり、controllerchange で1回だけ再読み込みする。
+  //   ただし記録の途中(app.js が window.__fgmRecording を立てる)は再読み込みしない。
+  //   そのときは window.__fgmUpdatePending を立てておき、記録が終わった時点で app.js が再読み込みする。
+  //   初回の訪問(それまで制御する SW が無かった)の controllerchange は「導入」なので再読み込みしない。
   if ('serviceWorker' in navigator) {
     let reloaded = false;
-    // Na primeira visita não havia controlador: a troca é só a instalação, não uma atualização.
     const hadController = !!navigator.serviceWorker.controller;
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      if (!hadController || reloaded || window.__fgmRecording) return;
+      if (!hadController || reloaded) return;
+      if (window.__fgmRecording) {
+        window.__fgmUpdatePending = true;
+        window.dispatchEvent(new Event('fgm-update-deferred'));
+        return;
+      }
       reloaded = true;
       location.reload();
     });

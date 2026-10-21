@@ -14,9 +14,14 @@
  *   createdBy / updatedBy: { uid, email, name }   … ルールで本人一致を強制
  *   createdAt / updatedAt: サーバー時刻、clientCreatedAt: 端末の時刻(ミリ秒)
  *   archived: false(削除は論理削除のみ)
+ *   photoCount, cover … 写真の枚数と、一覧用の小さな表紙(data URL、数 KB)
+ *
+ * 写真は gpsFeatures/{id}/photos/{photoId} に1枚1文書(lib/photos.js の説明を参照):
+ *   data(JPEG の data URL)、thumb、w、h、takenAt、uploadedBy、createdAt、archived
+ *   一覧の購読には含めない(開いた記録の写真だけを読む。全員の写真を毎回落とさない)。
  */
 import {
-  db, collection, doc, setDoc, updateDoc, onSnapshot, query, where, serverTimestamp, waitForPendingWrites
+  db, collection, doc, setDoc, updateDoc, onSnapshot, query, where, serverTimestamp, waitForPendingWrites, getDocs
 } from './firebase-init.js';
 
 export function createFirestoreStore(user) {
@@ -26,6 +31,10 @@ export function createFirestoreStore(user) {
   let meta = { pending: 0, fromCache: true, error: '' };
   const listeners = new Set();
   const errorListeners = new Set();
+  // 送ったがまだサーバーの受け取りが返ってきていない写真の数(この画面を開いている間だけ数える)
+  let photosInFlight = 0;
+  const photoCol = (fid) => collection(db, 'gpsFeatures', fid, 'photos');
+  const fromSnap = (d) => ({ ...d.data({ serverTimestamps: 'estimate' }), id: d.id, _pending: d.metadata.hasPendingWrites });
 
   const emit = () => listeners.forEach((fn) => fn(list, meta));
   const reportError = (err) => {
@@ -49,7 +58,7 @@ export function createFirestoreStore(user) {
           _pending: d.metadata.hasPendingWrites
         };
       });
-      meta = { pending: list.filter((f) => f._pending).length, fromCache: snap.metadata.fromCache, error: '' };
+      meta = { pending: list.filter((f) => f._pending).length, photosPending: photosInFlight, fromCache: snap.metadata.fromCache, error: '' };
       emit();
     },
     reportError
@@ -77,6 +86,36 @@ export function createFirestoreStore(user) {
     },
     archive(id) {
       updateDoc(doc(col, id), { archived: true, updatedBy: me, updatedAt: serverTimestamp() }).catch(reportError);
+    },
+    /** 写真を1枚足す(await しない。圏外なら端末に溜まる)。戻り値は写真の id。 */
+    addPhoto(fid, p) {
+      const ref = doc(photoCol(fid));
+      photosInFlight++;
+      meta = { ...meta, photosPending: photosInFlight };
+      emit();
+      setDoc(ref, {
+        data: p.data, thumb: p.thumb, w: p.w, h: p.h, takenAt: p.takenAt || Date.now(),
+        uploadedBy: me, createdAt: serverTimestamp(), archived: false
+      }).catch(reportError).finally(() => {
+        photosInFlight = Math.max(0, photosInFlight - 1);
+        meta = { ...meta, photosPending: photosInFlight };
+        emit();
+      });
+      return ref.id;
+    },
+    /** 1つの記録の写真を購読する(詳細を開いている間だけ)。 */
+    watchPhotos(fid, fn) {
+      return onSnapshot(query(photoCol(fid), where('archived', '==', false)), { includeMetadataChanges: true },
+        (snap) => fn(snap.docs.map(fromSnap).sort((a, b) => (a.takenAt || 0) - (b.takenAt || 0))),
+        reportError);
+    },
+    /** 1回だけ読む(共有・ZIP 用)。圏外なら端末に残っている分だけ返る。 */
+    async getPhotos(fid) {
+      const snap = await getDocs(query(photoCol(fid), where('archived', '==', false)));
+      return snap.docs.map(fromSnap).sort((a, b) => (a.takenAt || 0) - (b.takenAt || 0));
+    },
+    removePhoto(fid, pid) {
+      updateDoc(doc(photoCol(fid), pid), { archived: true, archivedBy: me, archivedAt: serverTimestamp() }).catch(reportError);
     },
     /** 未送信の書き込みがサーバーに届くまで待つ(「今すぐ同期」用)。圏外なら時間切れで false。 */
     async flush(ms = 15000) {

@@ -1,43 +1,51 @@
 /* field_gps_map — 画面全体のつなぎ役。
  *
  * 役割分担:
- *   lib/gps.js        位置情報の購読・平均化・画面の消灯防止
+ *   lib/gps.js        位置情報の購読・「押した瞬間の位置」・画面の消灯防止
  *   lib/recorder.js   記録中の図形(下書き)の状態
  *   lib/map-google.js 電波があるときの地図(衛星写真)
  *   lib/map-simple.js 圏外用の簡易地図(方眼)
- *   lib/store-*.js    保存先(本番=Firestore、試用=この端末だけ)
- *   lib/export.js     KML/GeoJSON/CSV の書き出しと読み込み
- * ここは画面の出し分けと、ボタンとそれらの配線だけを受け持つ。
+ *   lib/store-*.js    保存先(本番=Firestore、試用=この端末だけ)。写真もここ
+ *   lib/photos.js     写真の縮小
+ *   lib/export.js     KML/GeoJSON/CSV/ZIP の書き出しと読み込み
+ * ここは画面の出し分けと、ボタンとそれらの配線、更新・圏外の見張りを受け持つ。
  */
-import { t, initLang, setLang, getLang, applyI18n, helpHtml, categoryKeyFromLabel } from './lib/i18n.js';
+import { t, initLang, setLang, getLang, applyI18n, helpHtml, categoryKeyFromLabel, locale } from './lib/i18n.js';
 import * as geo from './lib/geo.js';
-import { startGps, onGps, lastFix, isFresh, collectFixes, keepScreenOn, gpsStatus } from './lib/gps.js';
+import { startGps, onGps, lastFix, isFresh, bestRecentFix, keepScreenOn, gpsStatus } from './lib/gps.js';
 import { createRecorder } from './lib/recorder.js';
 import { createSimpleMap } from './lib/map-simple.js';
 import { getSettings, saveSettings } from './lib/settings.js';
-import { CATEGORIES, defaultCategory } from './lib/categories.js';
+import { CATEGORIES, catColor, defaultCategory } from './lib/categories.js';
+import { preparePhoto, dataUrlToFile, MAX_PHOTOS } from './lib/photos.js';
 import { toKML, toGeoJSON, toCSV, toZip, download, stamp, parseKML, parseGeoJSON, readKmz, measure } from './lib/export.js';
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const $ = (id) => document.getElementById(id);
 const DEMO_KEY = 'fgm.demo';
 const VIEW_KEY = 'fgm.view';
+const LAST_SERVER_KEY = 'fgm.lastServer';
 
 let store = null;
 let user = null;
 let features = [];          // 保存先から来た全件(アーカイブ済みを除く)
-let storeMeta = { pending: 0, fromCache: true, error: '' };
+let storeMeta = { pending: 0, photosPending: 0, fromCache: true, error: '' };
 let mapCtl = null;
 let googleCtl = null;
 let simpleCtl = null;
 let authApi = null;
 let mainStarted = false;
-let collecting = null;      // 測位を集めている最中の { abort }
 let openDetailId = null;
+let detailPhotos = [];      // 開いている記録の写真
+let unwatchPhotos = null;
 let pendingOpenId = null;   // 保存直後など、まだ一覧に来ていない図形を開く予約
 let listWasOpen = false;
 let hiddenAt = 0;
 let followUntil = 0;        // 利用者が地図を動かしてから、追従を止めておく時刻
+let stagedPhotos = [];      // 保存ダイアログで選んだ、まだ保存していない写真
+let photoTarget = null;     // 'save' | 記録の id(詳細から追加)
+let saveCategory = 'field';
+let prevPending = 0;
 const filter = { q: '', kind: '', mine: false, group: '', sort: 'new' };
 const rec = createRecorder();
 
@@ -46,6 +54,7 @@ const rec = createRecorder();
 initLang(getSettings().lang);
 applyI18n();
 wireStatic();
+announceUpdate();
 
 const isDemo = new URLSearchParams(location.search).has('demo') || safeGet(DEMO_KEY) === '1';
 if (isDemo) enterDemo();
@@ -113,9 +122,11 @@ async function startMain(u, mode) {
   }
   showScreen('main');
   $('menuName').textContent = u.displayName || '';
-  $('menuEmail').textContent = mode === 'local' ? t('demo.note') : u.email;
-  $('menuSignoutText').textContent = mode === 'local' ? t('menu.leaveDemo') : t('menu.signout');
   $('menuVersion').textContent = `Field GPS Map v${VERSION}`;
+  renderMenuUser();
+
+  // 端末の保存領域を「消さないで」と頼む(容量が逼迫しても未送信の記録・写真が消されないように)
+  try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch { /* 無視 */ }
 
   startGps();
   onGps(onGpsUpdate);
@@ -124,6 +135,13 @@ async function startMain(u, mode) {
   store.subscribe((list, meta) => {
     features = list;
     storeMeta = meta;
+    if (store.mode !== 'local' && !meta.fromCache) safeSet(LAST_SERVER_KEY, String(Date.now()));
+    const pendingNow = (meta.pending || 0) + (meta.photosPending || 0);
+    // 電波が戻って未送信がゼロになったら、何件送れたかを知らせる(jatlog と同じ)
+    if (prevPending > 0 && pendingNow === 0 && navigator.onLine && store.mode !== 'local') {
+      toast(t('sync.sentN', { n: prevPending }), 5000);
+    }
+    prevPending = pendingNow;
     refreshAll();
     if (pendingOpenId && features.some((f) => f.id === pendingOpenId)) {
       const id = pendingOpenId;
@@ -147,6 +165,13 @@ async function startMain(u, mode) {
   if (m) pendingOpenId = m[1];
 
   if (!safeGet('fgm.helpSeen')) { safeSet('fgm.helpSeen', '1'); openHelp(); }
+  startUpdateWatch();
+}
+
+function renderMenuUser() {
+  if (!store) return;
+  $('menuEmail').textContent = store.mode === 'local' ? t('demo.note') : user.email;
+  $('menuSignoutText').textContent = store.mode === 'local' ? t('menu.leaveDemo') : t('menu.signout');
 }
 
 // ================================================================ 地図
@@ -213,7 +238,7 @@ function useMap(ctl) {
   const tag = $('mapModeTag');
   if (ctl.type === 'simple') { tag.hidden = false; tag.textContent = t('map.simpleTag'); }
   else tag.hidden = true;
-  // 初回で保存済みの表示位置が無いなら、現在地か登録済みの図形へ寄せる
+  // 初回で保存済みの表示位置が無いなら、現在地へ寄せる
   if (!loadView()) {
     const fx = lastFix();
     if (fx) ctl.centerOn(fx, 17);
@@ -225,11 +250,8 @@ function tapMode() {
 }
 
 function onMapTap(ll) {
-  if (!rec.active) return;
-  const st = rec.state;
-  if (st.method === 'tap') {
-    rec.addVertex({ lat: ll.lat, lng: ll.lng, acc: null, src: 'tap' });
-  }
+  if (!rec.active || rec.state.method !== 'tap') return;
+  rec.addVertex({ lat: ll.lat, lng: ll.lng, acc: null, src: 'tap' });
 }
 
 window.addEventListener('offline', () => {
@@ -242,6 +264,7 @@ window.addEventListener('online', () => {
   if (mapCtl && mapCtl.type === 'simple' && getSettings().mapMode !== 'simple') {
     showBanner(t('map.onlineBanner'), t('map.useGoogle'), () => { hideBanner(); initMap(); });
   }
+  checkForUpdate({ silent: true });
 });
 
 // ================================================================ GPS 表示
@@ -249,7 +272,7 @@ window.addEventListener('online', () => {
 function onGpsUpdate({ fix, status }) {
   const chip = $('gpsChip');
   const s = getSettings();
-  chip.className = 'chip';
+  chip.className = 'glass-btn chip tappable';
   if (status === 'denied' || status === 'unsupported' || status === 'unavailable') {
     chip.classList.add('gps-off');
     $('gpsText').textContent = t('gps.off');
@@ -262,10 +285,7 @@ function onGpsUpdate({ fix, status }) {
     $('gpsText').textContent = `±${acc} m`;
   }
   if (fix && mapCtl) mapCtl.setMyLocation(fix);
-  if (fix && rec.active && rec.state.method === 'walk') {
-    rec.onFix(fix, { maxAcc: s.maxAcc, minDist: s.minDist });
-  }
-  // 歩いて記録している間は、現在地が画面の外へ出ないよう地図を追いかける。
+  // GPSで記録している間は、現在地が画面の外へ出ないよう地図を追いかける。
   // 利用者が地図を動かした直後(20秒)は追わない(確かめたい場所を見ているので)。
   if (fix && rec.active && GPS_METHODS.includes(rec.state.method) && Date.now() > followUntil && mapCtl) {
     mapCtl.centerOn({ lat: fix.lat, lng: fix.lng });
@@ -285,11 +305,12 @@ function gpsHelp() {
 
 // ================================================================ 記録
 
-const GPS_METHODS = ['walk', 'corners', 'gps'];
+const GPS_METHODS = ['corners', 'gps'];
+const GOAL_POINTS = 10;     // 1つの圃場の点はこのくらいまで(Kazさん 2026-10-21)
 
 function methodsFor(kind) {
   if (kind === 'point') return ['gps', 'tap'];
-  return ['walk', 'corners', 'tap'];
+  return ['corners', 'tap'];
 }
 
 function openNewSheet() {
@@ -306,8 +327,17 @@ function chooseKind(kind) {
   methodsFor(kind).forEach((m, i) => {
     const b = document.createElement('button');
     b.type = 'button';
-    const icon = m === 'walk' ? 'i-walk' : m === 'corners' ? 'i-corner' : m === 'tap' ? 'i-tap' : 'i-target';
-    b.innerHTML = `<svg class="ic"><use href="#${icon}"/></svg><strong>${t('method.' + m)}${i === 0 ? `<span class="rec-tag">${t('new.recommended')}</span>` : ''}</strong><span>${t('method.' + m + '.d.' + kind)}</span>`;
+    b.className = 'tappable';
+    const icon = m === 'corners' ? 'i-walk' : m === 'tap' ? 'i-tap' : 'i-target';
+    b.innerHTML = `<span class="choice-ic"><svg class="ic"><use href="#${icon}"/></svg></span><strong></strong><span></span>`;
+    b.querySelector('strong').textContent = t('method.' + m);
+    if (i === 0) {
+      const tag = document.createElement('span');
+      tag.className = 'rec-tag';
+      tag.textContent = t('new.recommended');
+      b.querySelector('strong').appendChild(tag);
+    }
+    b.querySelector('span:last-child').textContent = t('method.' + m + '.d.' + kind);
     b.addEventListener('click', () => startRecording(kind, m));
     box.appendChild(b);
   });
@@ -326,7 +356,6 @@ function startRecording(kind, method) {
   showRecPanel();
   const fx = lastFix();
   if (fx && isFresh(fx, 60000)) mapCtl.centerOn(fx, 19);
-  if (kind === 'point' && method === 'gps') measurePoint();
 }
 
 function showRecPanel() {
@@ -336,20 +365,22 @@ function showRecPanel() {
   $('fabNew').hidden = true;
   $('recPanel').hidden = false;
   $('mainScreen').classList.add('recording');
+  document.body.classList.add('is-recording');
   mapCtl.setFeaturesClickable(st.method !== 'tap');
   renderRec();
 }
 
 function stopRecording() {
-  if (collecting) { collecting.abort(); collecting = null; }
   rec.clear();
   keepScreenOn(false);
   window.__fgmRecording = false;
   $('recPanel').hidden = true;
   $('mainScreen').classList.remove('recording');
+  document.body.classList.remove('is-recording');
   $('fabNew').hidden = false;
-  $('recProgress').hidden = true;
   if (mapCtl) { mapCtl.setDraft(null); mapCtl.setFeaturesClickable(true); }
+  // 記録中に届いた新しい版は、記録が終わったここで入れる
+  if (window.__fgmUpdatePending) setTimeout(() => location.reload(), 1200);
 }
 
 rec.onChange((st) => {
@@ -358,35 +389,26 @@ rec.onChange((st) => {
   if (st) renderRec();
 });
 
+function markLabel(st) {
+  if (st.kind === 'point') return st.vertices.length ? t('rec.again') : t('rec.here');
+  return st.kind === 'polygon' ? t('rec.addCorner') : t('rec.addPoint');
+}
+
 function renderRec() {
   const st = rec.state;
   if (!st) return;
   $('recKindIcon').setAttribute('href', st.kind === 'polygon' ? '#i-polygon' : st.kind === 'line' ? '#i-line' : '#i-point');
-  $('recTitle').textContent = `${t('kind.' + st.kind)} — ${t('method.' + st.method)}`;
-  let hint;
-  if (st.method === 'walk') hint = st.paused ? t('rec.hint.walkPaused') : t('rec.hint.walk');
-  else hint = t(`rec.hint.${st.method}.${st.kind}`);
-  $('recHint').textContent = hint;
-  $('recDot').hidden = !(st.method === 'walk' && !st.paused);
-
+  $('recTitle').textContent = `${t('kind.' + st.kind)} · ${t('method.' + st.method)}`;
+  $('recHint').textContent = t(`rec.hint.${st.method}.${st.kind}`);
   const mark = $('btnRecMark');
-  if (st.method === 'corners') {
-    mark.hidden = false;
-    $('btnRecMarkText').textContent = collecting ? t('rec.stopNow') : t('rec.mark', { n: st.vertices.length + 1 });
-  } else if (st.kind === 'point' && st.method === 'gps') {
-    mark.hidden = false;
-    $('btnRecMarkText').textContent = collecting ? t('rec.stopNow') : t('rec.remeasure');
-  } else mark.hidden = true;
-
-  const pause = $('btnRecPause');
-  pause.hidden = st.method !== 'walk';
-  $('recPauseIcon').setAttribute('href', st.paused ? '#i-play' : '#i-pause');
-  $('btnRecPauseText').textContent = st.paused ? (st.vertices.length ? t('rec.continue') : t('rec.begin')) : t('rec.pause');
+  mark.hidden = !GPS_METHODS.includes(st.method);
+  $('recMarkIcon').setAttribute('href', st.kind === 'polygon' ? '#i-corner' : '#i-point');
+  $('btnRecMarkText').textContent = markLabel(st);
   $('btnRecUndo').hidden = st.kind === 'point';
   $('btnRecFinishText').textContent = st.kind === 'point' ? t('rec.savePoint') : t('rec.finish');
-  $('btnRecFinish').disabled = !!collecting;
   $('stAreaBox').hidden = st.kind !== 'polygon';
   $('stLenLabel').textContent = st.kind === 'polygon' ? t('rec.perimeter') : st.kind === 'line' ? t('rec.length') : t('rec.coords');
+  $('stGoal').textContent = st.kind === 'point' ? '' : `/ ${t('rec.goal')}`;
   renderRecStats();
 }
 
@@ -403,73 +425,49 @@ function renderRecStats() {
     $('stLen').textContent = s.lengthM ? geo.fmtLength(s.lengthM, lang) : '—';
   }
   const fx = lastFix();
-  $('stAcc').textContent = fx && isFresh(fx) ? `±${Math.round(fx.acc)} m` : '—';
+  const fresh = fx && isFresh(fx);
+  $('stAcc').textContent = fresh ? `±${Math.round(fx.acc)} m` : '—';
+  // GPS の位置が無いうちは、押しても入らないことが見て分かるようにする
+  $('btnRecMark').classList.toggle('waiting', GPS_METHODS.includes(st.method) && !fresh);
 
   const warns = [];
   const set = getSettings();
-  if (st.method === 'walk' && st.rejected > 0) warns.push(t('rec.warn.rejected', { n: st.rejected, max: set.maxAcc }));
-  if (st.gapCount > 0) warns.push(t('rec.warn.gap'));
+  if (GPS_METHODS.includes(st.method) && fresh && fx.acc > set.maxAcc) warns.push(t('rec.warn.lowAcc', { acc: Math.round(fx.acc) }));
   if (st.kind === 'polygon' && s.selfIntersects) warns.push(t('rec.warn.cross'));
-  if (st.kind === 'polygon' && st.method === 'walk' && s.closingGapM != null && s.n > 5 && s.closingGapM > Math.max(15, set.maxAcc * 2)) {
-    warns.push(t('rec.warn.close', { m: Math.round(s.closingGapM) }));
-  }
+  if (st.kind !== 'point' && s.n > GOAL_POINTS + 2) warns.push(t('rec.warn.many', { n: s.n }));
   const w = $('recWarn');
   w.hidden = !warns.length;
   w.textContent = warns.join(' ');
 }
 
-async function collect(onDone) {
-  const set = getSettings();
-  const seconds = Number(set.avgSeconds) || 5;
-  $('recProgress').hidden = false;
-  $('recProgressBar').style.width = '0%';
-  $('recProgressText').textContent = t('rec.collecting', { s: seconds, n: 0 });
-  collecting = collectFixes(seconds, set.maxAcc, ({ elapsed, total, n, best }) => {
-    $('recProgressBar').style.width = `${Math.round((elapsed / total) * 100)}%`;
-    $('recProgressText').textContent = t('rec.collecting', { s: Math.max(0, Math.ceil(total - elapsed)), n }) +
-      (best != null ? ` · ±${Math.round(best)} m` : '');
-  });
-  renderRec();
-  const { fixes, usable } = await collecting.done;
-  collecting = null;
-  $('recProgress').hidden = true;
-  let list = usable;
-  if (!list.length && fixes.length) {
-    const best = fixes.reduce((a, b) => (a.acc <= b.acc ? a : b));
-    list = [best];
-    toast(t('rec.lowAcc', { acc: Math.round(best.acc), max: set.maxAcc }), 6000);
+/** 「ここを角に」:押した瞬間の位置で1点。待たせない。 */
+function markHere() {
+  const st = rec.state;
+  if (!st) return;
+  const fx = bestRecentFix();
+  if (!fx) { toast(t('rec.waitGps'), 5000); return; }
+  const last = st.vertices[st.vertices.length - 1];
+  // 同じ場所での押し間違い(2度押し)を拾わない
+  if (st.kind !== 'point' && last && last.src === 'gps' && Date.now() - last.t < 4000 && geo.distance(last, fx) < 2) {
+    toast(t('rec.dup'));
+    return;
   }
-  if (!list.length) {
-    // 平均する時間内に1つも測位が来なかった。直前の測位が新しければそれを使う。
-    const fx = lastFix();
-    if (fx && isFresh(fx, 10000)) list = [fx];
-  }
-  if (!list.length) { toast(t('rec.noFix'), 6000); renderRec(); return; }
-  const avg = geo.averageFixes(list);
-  onDone({ ...avg, src: 'gps', t: Date.now() });
-  renderRec();
-}
-
-function markCorner() {
-  if (collecting) { collecting.abort(); return; }
-  if (!rec.active) return;
-  collect((v) => rec.addVertex(v));
-}
-
-function measurePoint() {
-  if (collecting) { collecting.abort(); return; }
-  collect((v) => {
-    rec.addVertex(v);
-    const fx = { lat: v.lat, lng: v.lng };
-    mapCtl.centerOn(fx);
-  });
+  rec.addVertex({ lat: fx.lat, lng: fx.lng, acc: fx.acc, src: 'gps', t: Date.now() });
+  const n = rec.state.vertices.length;
+  const acc = Math.round(fx.acc);
+  const low = acc > getSettings().maxAcc;
+  toast(low ? t('rec.addedLow', { n, acc }) : t('rec.added', { n, acc }), low ? 6000 : 2200);
+  try { if (navigator.vibrate) navigator.vibrate(low ? [60, 80, 60] : 40); } catch { /* 無視 */ }
+  const b = $('btnRecMark');
+  b.classList.remove('flash');
+  void b.offsetWidth;
+  b.classList.add('flash');
+  if (st.kind === 'point') mapCtl.centerOn({ lat: fx.lat, lng: fx.lng });
 }
 
 function finishRecording() {
-  if (collecting) return;
   const err = rec.validate();
   if (err) { toast(t(err), 5000); return; }
-  if (rec.state.method === 'walk' && !rec.state.paused) rec.setPaused(true);
   openSaveDialog(null);
 }
 
@@ -484,25 +482,29 @@ async function cancelRecording() {
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') { hiddenAt = Date.now(); return; }
   const st = rec.state;
-  if (st && st.method === 'walk' && !st.paused && hiddenAt && Date.now() - hiddenAt > 5000) {
+  if (st && GPS_METHODS.includes(st.method) && st.kind !== 'point' && hiddenAt && Date.now() - hiddenAt > 5000) {
     toast(t('rec.wasHidden'), 8000);
   }
   hiddenAt = 0;
+  maybeCheckOnReturn();
 });
 
 // ================================================================ 保存・編集
 
 let saveTarget = null;   // null = 新規(記録中の図形) / 図形のid = 属性の編集
 
-function fillCategorySelect(sel, value) {
-  sel.innerHTML = '';
+function renderCategoryChips() {
+  const box = $('fCatChips');
+  box.innerHTML = '';
   CATEGORIES.forEach((c) => {
-    const o = document.createElement('option');
-    o.value = c.key;
-    o.textContent = t('cat.' + c.key);
-    sel.appendChild(o);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip-sel tappable' + (c.key === saveCategory ? ' on' : '');
+    b.innerHTML = `<span class="cdot" style="background:${c.color}"></span><span></span>`;
+    b.lastChild.textContent = t('cat.' + c.key);
+    b.addEventListener('click', () => { saveCategory = c.key; renderCategoryChips(); });
+    box.appendChild(b);
   });
-  sel.value = value;
 }
 
 function groupsList() {
@@ -527,24 +529,28 @@ function openSaveDialog(editId) {
     $('saveTitle').textContent = t('save.editTitle');
     $('saveSummary').textContent = summaryText(f.kind, f.areaM2, f.lengthM, f.vertices, lang);
     $('fName').value = f.name || '';
-    fillCategorySelect($('fCategory'), f.category || defaultCategory(f.kind));
+    saveCategory = f.category || defaultCategory(f.kind);
     $('fGroup').value = f.group || '';
     $('fNotes').value = f.notes || '';
+    $('savePhotosBox').hidden = true;     // 写真は詳細の画面で足し引きする
   } else {
     const st = rec.state;
     const s = rec.stats();
     $('saveTitle').textContent = t('save.title');
     $('saveSummary').textContent = summaryText(st.kind, s.areaM2, s.lengthM, st.vertices, lang);
     const warns = [];
-    if (s.tapCount) warns.push(t('save.warn.tap', { n: s.tapCount }));
+    if (s.tapCount && st.method !== 'tap') warns.push(t('save.warn.tap', { n: s.tapCount }));
     if (st.kind === 'polygon' && s.selfIntersects) warns.push(t('rec.warn.cross'));
-    if (st.gapCount) warns.push(t('rec.warn.gap'));
     if (warns.length) { warn.hidden = false; warn.textContent = warns.join(' '); }
     $('fName').value = '';
-    fillCategorySelect($('fCategory'), safeGet('fgm.lastCat.' + st.kind) || defaultCategory(st.kind));
+    saveCategory = safeGet('fgm.lastCat.' + st.kind) || defaultCategory(st.kind);
     $('fGroup').value = safeGet('fgm.lastGroup') || '';
     $('fNotes').value = '';
+    $('savePhotosBox').hidden = false;
+    stagedPhotos = [];
+    renderStagedPhotos();
   }
+  renderCategoryChips();
   $('saveDialog').showModal();
   setTimeout(() => $('fName').focus(), 50);
 }
@@ -560,7 +566,7 @@ function onSaveSubmit(e) {
   e.preventDefault();
   const name = $('fName').value.trim();
   if (!name) { $('fName').focus(); return; }
-  const category = $('fCategory').value;
+  const category = saveCategory;
   const group = $('fGroup').value.trim();
   const notes = $('fNotes').value.trim();
   if (saveTarget) {
@@ -574,11 +580,7 @@ function onSaveSubmit(e) {
   const s = rec.stats();
   const docData = {
     kind: st.kind, method: st.method, name, category, group, notes,
-    vertices: st.vertices.map((v) => {
-      const o = { lat: v.lat, lng: v.lng, acc: v.acc == null ? null : v.acc, t: v.t || 0, src: v.src || 'gps' };
-      if (v.n) o.n = v.n;
-      return o;
-    }),
+    vertices: st.vertices.map((v) => ({ lat: v.lat, lng: v.lng, acc: v.acc == null ? null : v.acc, t: v.t || 0, src: v.src || 'gps' })),
     areaM2: s.areaM2 == null ? null : Math.round(s.areaM2 * 10) / 10,
     lengthM: s.lengthM == null ? null : Math.round(s.lengthM * 10) / 10,
     center: geo.centroid(st.vertices, st.kind),
@@ -586,11 +588,14 @@ function onSaveSubmit(e) {
     accMedian: s.accMedian == null ? null : s.accMedian,
     accMax: s.accMax == null ? null : s.accMax,
     tapCount: s.tapCount,
-    gapCount: st.gapCount || 0,
     startedAt: st.startedAt,
-    durationS: Math.round((Date.now() - st.startedAt) / 1000)
+    durationS: Math.round((Date.now() - st.startedAt) / 1000),
+    photoCount: stagedPhotos.length,
+    cover: stagedPhotos.length ? stagedPhotos[0].thumb : null
   };
   const id = store.add(docData);
+  stagedPhotos.forEach((p) => store.addPhoto(id, p));
+  stagedPhotos = [];
   safeSet('fgm.lastCat.' + st.kind, category);
   safeSet('fgm.lastGroup', group);
   $('saveDialog').close();
@@ -598,6 +603,134 @@ function onSaveSubmit(e) {
   toast(store.mode === 'local' ? t('save.ok.demo') : navigator.onLine ? t('save.ok.online') : t('save.ok.offline'), 5000);
   pendingOpenId = id;
   if (features.some((f) => f.id === id)) { pendingOpenId = null; openDetail(id); }
+}
+
+// ================================================================ 写真
+
+function pickPhotos(target) {
+  photoTarget = target;
+  const count = target === 'save' ? stagedPhotos.length : detailPhotos.length;
+  if (count >= MAX_PHOTOS) { toast(t('photo.max', { n: MAX_PHOTOS })); return; }
+  $('photoInput').value = '';
+  $('photoInput').click();
+}
+
+async function onPhotosChosen() {
+  const files = [...($('photoInput').files || [])];
+  if (!files.length) return;
+  const target = photoTarget;
+  const already = target === 'save' ? stagedPhotos.length : detailPhotos.length;
+  const room = MAX_PHOTOS - already;
+  if (files.length > room) toast(t('photo.max', { n: MAX_PHOTOS }));
+  toast(t('photo.busy'), 10000);
+  const ready = [];
+  for (const f of files.slice(0, Math.max(0, room))) {
+    try { ready.push(await preparePhoto(f)); }
+    catch (err) { console.error(err); toast(t('photo.failed'), 5000); }
+  }
+  if (!ready.length) return;
+  if (target === 'save') {
+    stagedPhotos.push(...ready);
+    renderStagedPhotos();
+    hideToast();
+    return;
+  }
+  const f = features.find((x) => x.id === target);
+  if (!f) return;
+  ready.forEach((p) => store.addPhoto(f.id, p));
+  const patch = { photoCount: (detailPhotos.length || 0) + ready.length };
+  if (!f.cover) patch.cover = ready[0].thumb;
+  store.update(f.id, patch);
+  toast(t('photo.added'));
+}
+
+function photoTile(src, { badge = '', onClick, onRemove } = {}) {
+  const b = document.createElement('div');
+  b.className = 'ph tappable';
+  b.setAttribute('role', 'button');
+  const img = document.createElement('img');
+  img.src = src;
+  img.alt = '';
+  img.loading = 'lazy';
+  b.appendChild(img);
+  if (badge) { const s = document.createElement('span'); s.className = 'ph-badge'; s.textContent = badge; b.appendChild(s); }
+  if (onClick) b.addEventListener('click', onClick);
+  if (onRemove) {
+    const x = document.createElement('button');
+    x.type = 'button';
+    x.className = 'ph-x';
+    x.setAttribute('aria-label', t('photo.remove'));
+    x.innerHTML = '<svg class="ic"><use href="#i-close"/></svg>';
+    x.addEventListener('click', (e) => { e.stopPropagation(); onRemove(); });
+    b.appendChild(x);
+  }
+  return b;
+}
+
+function addTile(onClick) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'ph-add tappable';
+  b.innerHTML = '<svg class="ic"><use href="#i-camera"/></svg><span></span>';
+  b.lastChild.textContent = t('photo.add');
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function renderStagedPhotos() {
+  const box = $('savePhotos');
+  box.innerHTML = '';
+  stagedPhotos.forEach((p, i) => box.appendChild(photoTile(p.thumb, {
+    onRemove: () => { stagedPhotos.splice(i, 1); renderStagedPhotos(); }
+  })));
+  if (stagedPhotos.length < MAX_PHOTOS) box.appendChild(addTile(() => pickPhotos('save')));
+}
+
+function renderDetailPhotos() {
+  const box = $('dPhotos');
+  box.innerHTML = '';
+  detailPhotos.forEach((p, i) => box.appendChild(photoTile(p.thumb || p.data, {
+    badge: p._pending && store.mode !== 'local' ? t('photo.pending') : '',
+    onClick: () => openViewer(i)
+  })));
+  if (openDetailId) box.appendChild(addTile(() => pickPhotos(openDetailId)));
+  if (!detailPhotos.length) {
+    const s = document.createElement('span');
+    s.className = 'ph-empty';
+    s.textContent = t('photo.none');
+    box.appendChild(s);
+  }
+}
+
+let viewerIndex = 0;
+function openViewer(i) {
+  viewerIndex = i;
+  renderViewer();
+  if (!$('viewerDialog').open) $('viewerDialog').showModal();
+}
+
+function renderViewer() {
+  const p = detailPhotos[viewerIndex];
+  if (!p) { if ($('viewerDialog').open) $('viewerDialog').close(); return; }
+  $('viewerImg').src = p.data;
+  const who = (p.uploadedBy && p.uploadedBy.name) || '';
+  const when = p.takenAt ? new Date(p.takenAt).toLocaleString(locale()) : '';
+  $('viewerCaption').textContent = `${viewerIndex + 1} / ${detailPhotos.length} · ${t('photo.by', { name: who, date: when })}`;
+  $('viewerPrev').hidden = viewerIndex === 0;
+  $('viewerNext').hidden = viewerIndex >= detailPhotos.length - 1;
+}
+
+async function removeViewerPhoto() {
+  const p = detailPhotos[viewerIndex];
+  const fid = openDetailId;
+  if (!p || !fid) return;
+  const ok = await confirmDlg(t('photo.removeConfirm'), t('photo.remove'), t('common.cancel'));
+  if (!ok) return;
+  store.removePhoto(fid, p.id);
+  const rest = detailPhotos.filter((x) => x.id !== p.id);
+  store.update(fid, { photoCount: rest.length, cover: rest.length ? (rest[0].thumb || null) : null });
+  $('viewerDialog').close();
+  toast(t('photo.removed'));
 }
 
 // ================================================================ 一覧
@@ -632,6 +765,7 @@ function refreshAll() {
     else closeDetail();
   }
   updateSyncChip();
+  if ($('menuDialog').open) renderStatus();
 }
 
 function renderGroupSelect() {
@@ -655,7 +789,7 @@ function renderList() {
   const areas = vis.filter((f) => f.kind === 'polygon');
   const total = areas.reduce((s, f) => s + (f.areaM2 || 0), 0);
   $('listSummary').textContent = t('list.summary', {
-    n: vis.length, a: areas.length, ha: (total / 10000).toLocaleString(lang === 'ja' ? 'ja-JP' : 'pt-PT', { maximumFractionDigits: 2 })
+    n: vis.length, a: areas.length, ha: (total / 10000).toLocaleString(locale(), { maximumFractionDigits: 2 })
   });
   if (!vis.length) {
     const li = document.createElement('li');
@@ -670,8 +804,12 @@ function renderList() {
     const icon = f.kind === 'polygon' ? 'i-polygon' : f.kind === 'line' ? 'i-line' : 'i-point';
     const val = f.kind === 'polygon' ? geo.fmtHa(f.areaM2, lang) : f.kind === 'line' ? geo.fmtLength(f.lengthM, lang) : '';
     const who = (f.createdBy && f.createdBy.name) || '';
-    const when = f.createdAtMs ? new Date(f.createdAtMs).toLocaleDateString(lang === 'ja' ? 'ja-JP' : 'pt-PT') : '';
-    li.innerHTML = `<svg class="ic"><use href="#${icon}"/></svg><span class="fl-name"></span><span class="fl-val"></span><span class="fl-sub"></span>`;
+    const when = f.createdAtMs ? new Date(f.createdAtMs).toLocaleDateString(locale()) : '';
+    const thumb = f.cover
+      ? `<img class="fl-thumb" alt="" loading="lazy">`
+      : `<span class="fl-thumb" style="background:${catColor(f.category || 'other')}"><svg class="ic"><use href="#${icon}"/></svg></span>`;
+    li.innerHTML = `${thumb}<span class="fl-name"></span><span class="fl-val"></span><span class="fl-sub"></span>`;
+    if (f.cover) li.querySelector('img').src = f.cover;
     li.querySelector('.fl-name').textContent = f.name || t('d.noName');
     if (f._pending) {
       const b = document.createElement('span');
@@ -700,9 +838,20 @@ function openDetail(id, { fit = false } = {}) {
   if (!f) { pendingOpenId = id; return; }
   $('listPanel').hidden = true;
   $('newSheet').hidden = true;
+  if (openDetailId !== id) {
+    if (unwatchPhotos) unwatchPhotos();
+    detailPhotos = [];
+    unwatchPhotos = store.watchPhotos(id, (list) => {
+      if (openDetailId !== id) return;
+      detailPhotos = list;
+      renderDetailPhotos();
+      if ($('viewerDialog').open) renderViewer();
+    });
+  }
   openDetailId = id;
   mapCtl.highlight(id);
   renderDetail(id);
+  renderDetailPhotos();
   $('detailSheet').hidden = false;
   if (fit) mapCtl.fitPoints(f.vertices);
   if (location.hash !== `#f=${id}`) history.replaceState(null, '', `#f=${id}`);
@@ -711,6 +860,8 @@ function openDetail(id, { fit = false } = {}) {
 function closeDetail() {
   $('detailSheet').hidden = true;
   openDetailId = null;
+  if (unwatchPhotos) { unwatchPhotos(); unwatchPhotos = null; }
+  detailPhotos = [];
   if (mapCtl) mapCtl.highlight(null);
   if (location.hash) history.replaceState(null, '', location.pathname + location.search);
   if (listWasOpen) { listWasOpen = false; openList(); }
@@ -729,7 +880,7 @@ function renderDetail(id) {
   const stats = [];
   if (f.kind === 'polygon') {
     stats.push([t('rec.area'), geo.fmtHa(f.areaM2, lang)]);
-    stats.push(['m²', Math.round(f.areaM2 || 0).toLocaleString(lang === 'ja' ? 'ja-JP' : 'pt-PT')]);
+    stats.push(['m²', Math.round(f.areaM2 || 0).toLocaleString(locale())]);
     stats.push([t('rec.perimeter'), geo.fmtLength(f.lengthM, lang)]);
   } else if (f.kind === 'line') {
     stats.push([t('rec.length'), geo.fmtLength(f.lengthM, lang)]);
@@ -747,7 +898,7 @@ function renderDetail(id) {
   });
   const meta = [
     [t('d.by'), (f.createdBy && (f.createdBy.name || f.createdBy.email)) || '—'],
-    [t('d.date'), f.createdAtMs ? new Date(f.createdAtMs).toLocaleString(lang === 'ja' ? 'ja-JP' : 'pt-PT') : '—'],
+    [t('d.date'), f.createdAtMs ? new Date(f.createdAtMs).toLocaleString(locale()) : '—'],
     [t('d.method'), t('method.' + (f.method || 'gps'))],
     [t('rec.vertices'), String((f.vertices || []).length)],
     [t('d.accuracy'), f.accMedian != null ? t('d.accText', { med: Math.round(f.accMedian), max: Math.round(f.accMax || f.accMedian) }) : '—']
@@ -776,7 +927,7 @@ function shareText(f) {
   if (f.kind === 'polygon') lines.push(`${t('rec.area')}: ${geo.fmtArea(f.areaM2, lang)}`, `${t('rec.perimeter')}: ${geo.fmtLength(f.lengthM, lang)}`);
   if (f.kind === 'line') lines.push(`${t('rec.length')}: ${geo.fmtLength(f.lengthM, lang)}`);
   if (f.group) lines.push(`${t('save.group')}: ${f.group}`);
-  lines.push(`${t('d.by')}: ${(f.createdBy && f.createdBy.name) || ''} (${f.createdAtMs ? new Date(f.createdAtMs).toLocaleDateString(lang === 'ja' ? 'ja-JP' : 'pt-PT') : ''})`);
+  lines.push(`${t('d.by')}: ${(f.createdBy && f.createdBy.name) || ''} (${f.createdAtMs ? new Date(f.createdAtMs).toLocaleDateString(locale()) : ''})`);
   lines.push(`Google Maps: https://www.google.com/maps/search/?api=1&query=${c.lat.toFixed(6)},${c.lng.toFixed(6)}`);
   if (store.mode !== 'local') lines.push(`${t('d.appLink')}: ${location.origin}${location.pathname}#f=${f.id}`);
   return lines.join('\n');
@@ -787,6 +938,11 @@ async function shareFeature() {
   if (!f) return;
   const text = shareText(f);
   if (navigator.share) {
+    // 写真があれば一緒に送る(WhatsApp は文章+写真を1度に受け取れる)
+    const files = detailPhotos.slice(0, MAX_PHOTOS).map((p, i) => dataUrlToFile(p.data, `${safeFileName(f.name)}_${i + 1}.jpg`));
+    if (files.length && navigator.canShare && navigator.canShare({ files })) {
+      try { await navigator.share({ title: f.name, text, files }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
+    }
     try { await navigator.share({ title: f.name, text }); return; } catch (e) { if (e && e.name === 'AbortError') return; }
   }
   try { await navigator.clipboard.writeText(text); toast(t('d.copied')); } catch { prompt(t('d.copyPrompt'), text); }
@@ -841,7 +997,17 @@ async function doExport(fmt) {
   if (fmt === 'kml') download(toKML(list, opts), `${base}.kml`, 'application/vnd.google-earth.kml+xml');
   else if (fmt === 'geojson') download(toGeoJSON(list), `${base}.geojson`, 'application/geo+json');
   else if (fmt === 'csv') download(toCSV(list, opts), `${base}.csv`, 'text/csv;charset=utf-8');
-  else download(await toZip(list, opts, t('exp.readme')), `${base}.zip`);
+  else {
+    toast(t('exp.busy'), 20000);
+    const photos = [];
+    for (const f of list.filter((x) => x.photoCount)) {
+      try {
+        const ps = await store.getPhotos(f.id);
+        ps.forEach((p, i) => photos.push({ name: `photos/${safeFileName(f.name)}_${f.id.slice(-4)}_${i + 1}.jpg`, file: dataUrlToFile(p.data, 'p.jpg') }));
+      } catch (err) { console.warn('photos', f.id, err); }
+    }
+    download(await toZip(list, opts, t('exp.readme'), photos), `${base}.zip`);
+  }
   toast(t('exp.done', { n: list.length }));
 }
 
@@ -884,7 +1050,7 @@ function doImport() {
       vertices, areaM2: m.areaM2 == null ? null : Math.round(m.areaM2 * 10) / 10,
       lengthM: m.lengthM == null ? null : Math.round(m.lengthM * 10) / 10,
       center: m.center, nVertices: vertices.length, accMedian: null, accMax: null,
-      tapCount: 0, gapCount: 0, startedAt: now, durationS: 0
+      tapCount: 0, startedAt: now, durationS: 0, photoCount: 0, cover: null
     });
     all.push(...vertices);
   });
@@ -896,13 +1062,15 @@ function doImport() {
   $('impPreview').textContent = '';
 }
 
-// ================================================================ 同期の表示
+// ================================================================ 送信の表示
+
+function pendingCount() { return (storeMeta.pending || 0) + (storeMeta.photosPending || 0); }
 
 function updateSyncChip() {
   const chip = $('syncChip');
   if (!store) { chip.hidden = true; return; }
   chip.hidden = false;
-  chip.className = 'chip';
+  chip.className = 'glass-btn chip tappable';
   const icon = $('syncIcon');
   if (store.mode === 'local') {
     chip.classList.add('sync-demo');
@@ -910,7 +1078,7 @@ function updateSyncChip() {
     $('syncText').textContent = t('sync.demo');
     return;
   }
-  const n = storeMeta.pending || 0;
+  const n = pendingCount();
   if (!navigator.onLine) {
     chip.classList.add('sync-off');
     icon.setAttribute('href', '#i-cloud-off');
@@ -929,20 +1097,100 @@ function updateSyncChip() {
 async function syncNow() {
   if (!store) return;
   if (store.mode === 'local') { toast(t('sync.demoHelp'), 6000); return; }
-  if (!navigator.onLine) { toast(t('sync.offlineHelp', { n: storeMeta.pending || 0 }), 6000); return; }
+  if (!navigator.onLine) { toast(t('sync.offlineHelp', { n: pendingCount() }), 6000); return; }
   toast(t('sync.trying'));
   const ok = await store.flush();
   toast(ok ? t('sync.done') : t('sync.wait'), 5000);
 }
 
-// ================================================================ 設定・ヘルプ・メニュー
+// ================================================================ 圏外の準備・自動更新(jatlog_offline に倣う)
+
+/** Service Worker に「アプリ本体が全部キャッシュに入っているか」を尋ねる。 */
+function askSw(msg, ms = 3000) {
+  return new Promise((resolve) => {
+    const ctl = navigator.serviceWorker && navigator.serviceWorker.controller;
+    if (!ctl) { resolve(null); return; }
+    const ch = new MessageChannel();
+    const timer = setTimeout(() => resolve(null), ms);
+    ch.port1.onmessage = (e) => { clearTimeout(timer); resolve(e.data); };
+    try { ctl.postMessage(msg, [ch.port2]); } catch { clearTimeout(timer); resolve(null); }
+  });
+}
+
+async function renderStatus() {
+  const off = $('stOffline');
+  const st = await askSw({ type: 'status' });
+  const ready = !!(st && st.ready);
+  off.className = 'status-row ' + (ready ? 'ok' : 'warn');
+  off.querySelector('span').textContent = ready ? t('off.ready') : t('off.notReady');
+
+  const pend = $('stPending');
+  const n = pendingCount();
+  pend.className = 'status-row ' + (store && store.mode === 'local' ? '' : n ? 'warn' : 'ok');
+  pend.querySelector('use').setAttribute('href', n ? '#i-cloud-off' : '#i-cloud-ok');
+  pend.querySelector('span').textContent = !store ? '' : store.mode === 'local' ? t('off.demo') : n ? t('off.pending', { n }) : t('off.allSent');
+
+  const last = Number(safeGet(LAST_SERVER_KEY) || 0);
+  $('stLast').hidden = !store || store.mode === 'local';
+  $('stLast').textContent = last ? t('off.lastSync', { time: new Date(last).toLocaleString(locale()) }) : t('off.never');
+}
+
+/** 更新したあとの最初の起動で「v○ に更新しました」と知らせる。 */
+function announceUpdate() {
+  const prev = safeGet('fgm.version');
+  if (prev && prev !== VERSION) setTimeout(() => toast(t('upd.done', { v: VERSION }), 5000), 1500);
+  safeSet('fgm.version', VERSION);
+}
+
+let lastUpdateCheck = 0;
+
+/**
+ * 新しい版があるか確かめる。sw.js が変わっていれば、ブラウザが新しい SW を入れ、
+ * skipWaiting → controllerchange → index.html の仕掛けで再読み込みされる。
+ * silent = 自動の確認(結果を画面に出さない)。手動はメニューの「アップデートを確認」。
+ */
+async function checkForUpdate({ silent = false } = {}) {
+  lastUpdateCheck = Date.now();
+  if (!('serviceWorker' in navigator)) { if (!silent) toast(t('upd.unsupported'), 5000); return; }
+  if (!navigator.onLine) { if (!silent) toast(t('upd.offline'), 5000); return; }
+  let reg;
+  try { reg = await navigator.serviceWorker.getRegistration(); } catch { reg = null; }
+  if (!reg) { if (!silent) toast(t('upd.unsupported'), 5000); return; }
+  let found = false;
+  const onFound = () => { found = true; };
+  reg.addEventListener('updatefound', onFound);
+  if (!silent) toast(t('upd.checking'));
+  try { await reg.update(); } catch { if (!silent) toast(t('upd.offline'), 5000); reg.removeEventListener('updatefound', onFound); return; }
+  setTimeout(() => {
+    reg.removeEventListener('updatefound', onFound);
+    if (found || reg.installing || reg.waiting) { if (!silent || window.__fgmRecording) toast(t('upd.found'), 5000); }
+    else if (!silent) toast(t('upd.latest', { v: VERSION }));
+  }, 1200);
+}
+
+function startUpdateWatch() {
+  setTimeout(() => checkForUpdate({ silent: true }), 8000);
+  setInterval(() => { if (document.visibilityState === 'visible') checkForUpdate({ silent: true }); }, 30 * 60 * 1000);
+  window.addEventListener('fgm-update-deferred', () => {
+    $('updDot').hidden = false;
+    $('menuUpdDot').hidden = false;
+    toast(t('upd.deferred'), 6000);
+  });
+}
+
+function maybeCheckOnReturn() {
+  // アプリに戻ってきたとき(前回の確認から5分以上たっていれば)
+  if (mainStarted && document.visibilityState === 'visible' && Date.now() - lastUpdateCheck > 5 * 60 * 1000) {
+    checkForUpdate({ silent: true });
+  }
+}
+
+// ================================================================ 設定・言語・ヘルプ・メニュー
 
 function openSettings() {
   const s = getSettings();
   $('sLang').value = getLang();
   $('sMaxAcc').value = String(s.maxAcc);
-  $('sMinDist').value = String(s.minDist);
-  $('sAvg').value = String(s.avgSeconds);
   $('sMapMode').value = s.mapMode;
   $('sMapType').value = s.mapType;
   $('settingsDialog').showModal();
@@ -953,8 +1201,6 @@ function saveSettingsFromDialog() {
   const next = saveSettings({
     lang: $('sLang').value,
     maxAcc: Number($('sMaxAcc').value),
-    minDist: Number($('sMinDist').value),
-    avgSeconds: Number($('sAvg').value),
     mapMode: $('sMapMode').value,
     mapType: $('sMapType').value
   });
@@ -975,17 +1221,25 @@ function changeLang(lang) {
   refreshAll();
   if (rec.active) renderRec();
   if (mapCtl) useMap(mapCtl);
-  if (user && store) {
-    $('menuEmail').textContent = store.mode === 'local' ? t('demo.note') : user.email;
-    $('menuSignoutText').textContent = store.mode === 'local' ? t('menu.leaveDemo') : t('menu.signout');
-  }
+  renderMenuUser();
+  if (openDetailId) renderDetailPhotos();
   updateSyncChip();
-  document.querySelectorAll('.lang-switch button').forEach((b) => b.classList.toggle('on', b.dataset.lang === lang));
+  document.querySelectorAll('.lang-switch button, .lang-list button').forEach((b) => b.classList.toggle('on', b.dataset.lang === lang));
+}
+
+function openLangDialog() {
+  document.querySelectorAll('.lang-list button').forEach((b) => b.classList.toggle('on', b.dataset.lang === getLang()));
+  $('langDialog').showModal();
 }
 
 function openHelp() {
   $('helpBody').innerHTML = helpHtml();
   $('helpDialog').showModal();
+}
+
+function openMenu() {
+  renderStatus();
+  $('menuDialog').showModal();
 }
 
 async function signOutOrLeave() {
@@ -1009,13 +1263,17 @@ function openLayers() {
     ['hybrid', t('set.mapType.hybrid')], ['satellite', t('set.mapType.satellite')],
     ['roadmap', t('set.mapType.roadmap')], ['terrain', t('set.mapType.terrain')], ['simple', t('set.mapMode.simple')]
   ];
-  d.innerHTML = `<h2>${t('map.layers')}</h2><nav class="menu-items"></nav><p class="muted small">${t('map.layersNote')}</p><div class="dlg-buttons"><button type="button" class="btn-text">${t('common.close')}</button></div>`;
+  d.innerHTML = `<h2></h2><nav class="menu-items lang-list"></nav><p class="muted small"></p><div class="dlg-buttons"><button type="button" class="btn-ghost"></button></div>`;
+  d.querySelector('h2').textContent = t('map.layers');
+  d.querySelector('p').textContent = t('map.layersNote');
+  d.querySelector('.dlg-buttons button').textContent = t('common.close');
   const nav = d.querySelector('nav');
   opts.forEach(([k, label]) => {
     const b = document.createElement('button');
     b.type = 'button';
     const on = (k === 'simple' && mapCtl.type === 'simple') || (mapCtl.type === 'google' && getSettings().mapType === k);
-    b.innerHTML = `<svg class="ic"><use href="#${on ? 'i-check' : 'i-layers'}"/></svg><span></span>`;
+    b.classList.toggle('on', on);
+    b.innerHTML = `<svg class="ic"><use href="#i-check"/></svg><span></span>`;
     b.querySelector('span').textContent = label;
     b.addEventListener('click', async () => {
       d.close();
@@ -1046,9 +1304,14 @@ function toast(msg, ms = 3500) {
   const el = $('toast');
   el.textContent = msg;
   el.hidden = false;
+  // 同じ要素のまま文言だけ変わったときも、出てくる動きをもう一度見せる
+  el.style.animation = 'none';
+  void el.offsetWidth;
+  el.style.animation = '';
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.hidden = true; }, ms);
 }
+function hideToast() { clearTimeout(toastTimer); $('toast').hidden = true; }
 
 let bannerAction = null;
 function showBanner(text, actionLabel, action) {
@@ -1092,9 +1355,12 @@ function confirmDlg(text, yes, no) {
 // ================================================================ ボタンの配線(起動時に1回)
 
 function wireStatic() {
-  document.querySelectorAll('.lang-switch button').forEach((b) => {
+  document.querySelectorAll('.lang-switch button, .lang-list button').forEach((b) => {
     b.classList.toggle('on', b.dataset.lang === getLang());
-    b.addEventListener('click', () => changeLang(b.dataset.lang));
+    b.addEventListener('click', () => {
+      changeLang(b.dataset.lang);
+      if ($('langDialog').open) $('langDialog').close();
+    });
   });
   $('btnSignIn').addEventListener('click', async () => {
     if (!authApi) return;
@@ -1119,20 +1385,29 @@ function wireStatic() {
   }));
   document.querySelectorAll('dialog [data-close]').forEach((b) => b.addEventListener('click', () => b.closest('dialog').close()));
 
-  $('btnRecMark').addEventListener('click', () => {
-    const st = rec.state;
-    if (!st) return;
-    if (st.kind === 'point') measurePoint(); else markCorner();
-  });
-  $('btnRecPause').addEventListener('click', () => { if (rec.active) rec.setPaused(!rec.state.paused); });
+  $('btnRecMark').addEventListener('click', markHere);
   $('btnRecUndo').addEventListener('click', () => rec.undo());
   $('btnRecFinish').addEventListener('click', finishRecording);
   $('btnRecCancel').addEventListener('click', cancelRecording);
 
   $('saveForm').addEventListener('submit', onSaveSubmit);
   $('saveCancel').addEventListener('click', () => $('saveDialog').close());
+  $('photoInput').addEventListener('change', onPhotosChosen);
 
-  $('btnMenu').addEventListener('click', () => $('menuDialog').showModal());
+  $('viewerPrev').addEventListener('click', () => { if (viewerIndex > 0) { viewerIndex--; renderViewer(); } });
+  $('viewerNext').addEventListener('click', () => { if (viewerIndex < detailPhotos.length - 1) { viewerIndex++; renderViewer(); } });
+  $('viewerRemove').addEventListener('click', removeViewerPhoto);
+  let touchX = null;
+  $('viewerDialog').addEventListener('touchstart', (e) => { touchX = e.touches[0].clientX; }, { passive: true });
+  $('viewerDialog').addEventListener('touchend', (e) => {
+    if (touchX == null) return;
+    const dx = e.changedTouches[0].clientX - touchX;
+    touchX = null;
+    if (dx > 50 && viewerIndex > 0) { viewerIndex--; renderViewer(); }
+    else if (dx < -50 && viewerIndex < detailPhotos.length - 1) { viewerIndex++; renderViewer(); }
+  });
+
+  $('btnMenu').addEventListener('click', openMenu);
   $('btnList').addEventListener('click', () => ($('listPanel').hidden ? openList() : ($('listPanel').hidden = true)));
   $('gpsChip').addEventListener('click', () => toast(gpsHelp(), 7000));
   $('syncChip').addEventListener('click', syncNow);
@@ -1154,8 +1429,9 @@ function wireStatic() {
     else if (act === 'import') { fillGroupDatalist(); $('importDialog').showModal(); }
     else if (act === 'settings') openSettings();
     else if (act === 'help') openHelp();
-    else if (act === 'lang') changeLang(getLang() === 'pt' ? 'ja' : 'pt');
+    else if (act === 'lang') openLangDialog();
     else if (act === 'sync') syncNow();
+    else if (act === 'update') checkForUpdate({ silent: false });
     else if (act === 'signout') signOutOrLeave();
   }));
 
@@ -1190,5 +1466,8 @@ window.__fgm = {
   get features() { return features; },
   get recorder() { return rec.state; },
   get mapType() { return mapCtl && mapCtl.type; },
-  stats: () => rec.stats()
+  get photos() { return detailPhotos; },
+  get version() { return VERSION; },
+  stats: () => rec.stats(),
+  checkForUpdate
 };

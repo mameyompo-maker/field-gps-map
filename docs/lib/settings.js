@@ -2,10 +2,8 @@
 const KEY = 'fgm.settings';
 
 export const DEFAULTS = {
-  lang: '',            // '' = 端末の言語から決める(日本語なら ja、それ以外は pt)
-  maxAcc: 10,          // これより誤差(m)の大きい測位は頂点に使わない
-  minDist: 3,          // 歩いて記録: 前の頂点からこれだけ(m)動いたら次の頂点
-  avgSeconds: 5,       // 角・地点の記録: 何秒の測位を平均するか
+  lang: '',            // '' = 端末の言語から決める(ja → 日本語、en → 英語、それ以外 → ポルトガル語)
+  maxAcc: 10,          // 角を打つときの誤差(m)がこれより大きければ警告する
   mapMode: 'auto',     // auto | google | simple
   mapType: 'hybrid'    // Google マップの種類
 };

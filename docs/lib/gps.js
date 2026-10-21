@@ -1,13 +1,13 @@
-/* field_gps_map — GPS(端末の位置情報)の購読、平均化、画面の消灯防止。
+/* field_gps_map — GPS(端末の位置情報)の購読、押した瞬間の位置、画面の消灯防止。
  *
  * 位置情報は watchPosition を1本だけ張り、全画面で共有する(複数張ると端末によっては
  * 互いに測位を奪い合い、更新間隔が乱れる)。
  *
  * ★ ブラウザの制約(避けられない):
  *   画面が消える・別のアプリに切り替えると、ブラウザは位置情報の更新を止める。
- *   歩いて境界を記録している最中にこれが起きると、その間の軌跡が抜ける。
- *   そのため記録中は Screen Wake Lock で画面を点けたままにし、抜けが起きたことを
- *   検出して利用者に知らせる(黙って直線で結ばない)。
+ *   角を打ちながら歩いている最中にこれが起きると、戻った直後の位置が古いことがある。
+ *   そのため記録中は Screen Wake Lock で画面を点けたままにし、画面が消えていたら
+ *   利用者に知らせる。
  */
 
 const listeners = new Set();
@@ -15,6 +15,7 @@ let watchId = null;
 let last = null;          // 最新の測位 { lat, lng, acc, t, alt, speed, heading }
 let status = 'idle';      // idle | waiting | ok | denied | unavailable | unsupported
 let lastError = '';
+const history = [];       // 直近 10 秒の測位(bestRecentFix 用)
 
 function emit() {
   const s = { fix: last, status, error: lastError };
@@ -54,6 +55,8 @@ export function startGps() {
       };
       status = 'ok';
       lastError = '';
+      history.push(last);
+      while (history.length && Date.now() - history[0].t > 10000) history.shift();
       emit();
     },
     (err) => {
@@ -74,40 +77,23 @@ export function stopGps() {
 }
 
 /**
- * 一定時間、測位を集める(角の記録・地点の記録)。
- *   seconds   … 集める時間
- *   maxAcc    … これより誤差の大きい測位は使わない(1つも無ければ最良の1つを使う)
- *   onTick({ elapsed, total, n, best }) … 進み具合
- * 戻り値: { fixes, usable }(usable は maxAcc 以下のもの)
- * 呼び出し側で abort() すれば途中で打ち切って、それまでの分で返す。
+ * 「ここを角に」を押した瞬間に使う位置。待ち時間をなくすため平均はしない。
+ * 直近 windowMs(既定 2.5 秒)に届いた測位の、基本は最新のもの(誤差が 3 m 以上小さい測位が直前にあればそちら)を返す。
+ * 歩きながら押すので、それより古い測位は使わない(数 m 後ろの位置になるため)。
+ * 直近に1つも無ければ、6 秒以内の最新の測位(画面が消えていた直後の古い位置は使わない)。無ければ null。
  */
-export function collectFixes(seconds, maxAcc, onTick) {
-  const fixes = [];
-  const started = Date.now();
-  let timer = null;
-  let off = null;
-  let resolveFn;
-  const done = new Promise((resolve) => { resolveFn = resolve; });
-  const finish = () => {
-    if (timer) clearInterval(timer);
-    if (off) off();
-    timer = null; off = null;
-    const usable = fixes.filter((f) => f.acc <= maxAcc);
-    resolveFn({ fixes, usable });
-  };
-  let lastT = 0;
-  off = onGps(({ fix }) => {
-    if (!fix || fix.t <= lastT || fix.t < started - 1500) return;   // 古い測位・同じ測位の重複は数えない
-    lastT = fix.t;
-    fixes.push(fix);
-  });
-  timer = setInterval(() => {
-    const elapsed = (Date.now() - started) / 1000;
-    const best = fixes.length ? Math.min(...fixes.map((f) => f.acc)) : null;
-    if (onTick) onTick({ elapsed: Math.min(elapsed, seconds), total: seconds, n: fixes.length, best });
-    if (elapsed >= seconds) finish();
-  }, 250);
-  return { done, abort: finish };
+export function bestRecentFix(windowMs = 2500) {
+  const now = Date.now();
+  const recent = history.filter((f) => now - f.t <= windowMs);
+  if (recent.length) {
+    // 基本は最新の測位(歩いている途中だと、古い測位は少し手前の位置になる)。
+    // 一瞬だけ精度が落ちたときに備えて、直前に「3 m 以上」良い測位があればそちらを使う。
+    const newest = recent[recent.length - 1];
+    let best = newest;
+    for (const f of recent) if (f.acc + 3 <= newest.acc && f.acc < best.acc) best = f;
+    return best;
+  }
+  return isFresh(last, 6000) ? last : null;
 }
 
 // ---------------------------------------------------------------- 画面を点けたままにする
