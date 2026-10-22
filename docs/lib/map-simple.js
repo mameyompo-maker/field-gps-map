@@ -1,6 +1,7 @@
 /* field_gps_map — 圏外用の簡易地図(canvas に自前で描く)。
  *
- * 衛星写真は無い。方眼(縮尺つき)の上に、登録済みの図形・記録中の図形・現在地を描く。
+ * 衛星写真は無い。方眼(縮尺つき)の上に、保存しておいた OpenStreetMap の地図(道・川・池・建物・地名。
+ * lib/offline-map.js)、登録済みの図形・記録中の図形・現在地を描く。
  * Google の地図はオフライン保存が規約で禁じられているため、圏外ではこれで
  * 「自分がどこにいて、どこまで記録したか」を確かめる。
  * map-google.js と同じ関数の組を返すので、app.js はどちらかを意識しない。
@@ -20,6 +21,7 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
   // 1px あたりの m。Google のズーム z ≒ 156543*cos(lat)/2^z m/px なので、見た目の縮尺を揃える。
   let mpp = view && view.zoom ? 156543.03 * Math.cos((center.lat * Math.PI) / 180) / 2 ** view.zoom : 2;
   let features = [];
+  let basemap = null;       // 保存した OpenStreetMap の地図(offline-map.js の mergeAreas の形)
   let draft = null;
   let me = null;
   let highlighted = null;
@@ -73,6 +75,8 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     for (let x = x0; x <= (W / 2) * mpp; x += step) { const sx = W / 2 + x / mpp; ctx.moveTo(sx, 0); ctx.lineTo(sx, H); }
     for (let y = y0; y <= (H / 2) * mpp; y += step) { const sy = H / 2 - y / mpp; ctx.moveTo(0, sy); ctx.lineTo(W, sy); }
     ctx.stroke();
+
+    if (basemap) paintBasemap();
 
     // 登録済みの図形
     const showLabels = mpp < 3;
@@ -160,6 +164,84 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     ctx.beginPath(); ctx.moveTo(nx, ny - 14); ctx.lineTo(nx + 8, ny + 6); ctx.lineTo(nx, ny + 2); ctx.lineTo(nx - 8, ny + 6); ctx.closePath();
     ctx.fillStyle = '#d93025'; ctx.fill();
     ctx.fillStyle = '#202124'; ctx.textAlign = 'center'; ctx.fillText('N', nx, ny + 20);
+    if (basemap) {
+      ctx.font = '500 10px system-ui, sans-serif'; ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(32,33,36,.75)';
+      ctx.fillText('© OpenStreetMap contributors', bx, by + 22);
+    }
+  }
+
+  // ---------------------------------------------------------------- 保存した OpenStreetMap の地図
+  // 1点ごとに関数を呼ぶと重いので、中心からの差に係数を掛けるだけの式で画面の座標にする。
+  function paintBasemap() {
+    const R = 6378137;
+    const ky = (Math.PI / 180) * R / mpp;
+    const kx = ky * Math.cos((center.lat * Math.PI) / 180);
+    const cx = W / 2, cy = H / 2, lat0 = center.lat, lng0 = center.lng;
+    // 画面に入っている範囲(少し広め)
+    const half = (Math.max(W, H) / 2 + 40) * mpp;
+    const dLat = half / 111320, dLng = half / (111320 * Math.cos((lat0 * Math.PI) / 180));
+    const S = lat0 - dLat, N = lat0 + dLat, Wl = lng0 - dLng, E = lng0 + dLng;
+    const inView = (b) => b[0] <= N && b[2] >= S && b[1] <= E && b[3] >= Wl;
+    const path = (c, close) => {
+      ctx.moveTo(cx + (c[1] - lng0) * kx, cy - (c[0] - lat0) * ky);
+      for (let i = 2; i < c.length; i += 2) ctx.lineTo(cx + (c[i + 1] - lng0) * kx, cy - (c[i] - lat0) * ky);
+      if (close) ctx.closePath();
+    };
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+
+    // 池・湖
+    ctx.beginPath();
+    basemap.water.forEach((it) => { if (inView(it.b)) path(it.c, true); });
+    ctx.fillStyle = '#b5d3f0'; ctx.fill();
+
+    // 川(大きい川は太く)
+    [[1, 4], [2, 1.6]].forEach(([k, w]) => {
+      ctx.beginPath();
+      basemap.rivers.forEach((it) => { if (it.k === k && inView(it.b)) path(it.c, false); });
+      ctx.lineWidth = Math.max(w, k === 1 ? 12 / mpp : 3 / mpp); ctx.strokeStyle = '#6fa8dc'; ctx.stroke();
+    });
+
+    // 建物(寄って見たときだけ。遠くからは点の集まりになって見づらい)
+    if (mpp < 6) {
+      ctx.beginPath();
+      basemap.buildings.forEach((it) => { if (inView(it.b)) path(it.c, true); });
+      ctx.fillStyle = '#d9cbb7'; ctx.fill();
+      if (mpp < 1.5) { ctx.lineWidth = 1; ctx.strokeStyle = '#bba98f'; ctx.stroke(); }
+    }
+
+    // 道(太い道ほど後に描いて上に重ねる)。小道は寄ったときだけ。
+    const roadStyle = {
+      1: { w: 6, fill: '#f7c86a', edge: '#d39a2b' },
+      2: { w: 5, fill: '#ffffff', edge: '#c9b99a' },
+      3: { w: 3.5, fill: '#ffffff', edge: '#c9b99a' },
+      4: { w: 2, fill: '#9b7d55', dash: [6, 4] },
+      5: { w: 1.2, fill: '#9b7d55', dash: [2, 4] }
+    };
+    [5, 4, 3, 2, 1].forEach((k) => {
+      if (k === 5 && mpp > 4) return;
+      if (k >= 3 && mpp > 25) return;
+      const st = roadStyle[k];
+      ctx.beginPath();
+      basemap.roads.forEach((it) => { if (it.k === k && inView(it.b)) path(it.c, false); });
+      if (st.edge) { ctx.setLineDash([]); ctx.lineWidth = st.w + 2; ctx.strokeStyle = st.edge; ctx.stroke(); }
+      ctx.setLineDash(st.dash || []);
+      ctx.lineWidth = st.w; ctx.strokeStyle = st.fill; ctx.stroke();
+    });
+    ctx.setLineDash([]);
+
+    // 地名(大きな町は遠くからでも、小さな集落は寄ったときだけ)
+    const minMpp = { city: 400, town: 120, village: 40, suburb: 15, hamlet: 12, neighbourhood: 6, locality: 6 };
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    basemap.places.forEach((p) => {
+      if (mpp > (minMpp[p.t] || 6)) return;
+      if (p.lat < S || p.lat > N || p.lng < Wl || p.lng > E) return;
+      const x = cx + (p.lng - lng0) * kx, y = cy - (p.lat - lat0) * ky;
+      const big = p.t === 'city' || p.t === 'town';
+      ctx.font = `${big ? 800 : 700} ${big ? 15 : 12.5}px system-ui, sans-serif`;
+      ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.strokeText(p.n, x, y);
+      ctx.fillStyle = '#4a3b2a'; ctx.fillText(p.n, x, y);
+    });
   }
 
   // ---------------------------------------------------------------- 操作(ドラッグ・ピンチ・ホイール・タップ)
@@ -265,6 +347,7 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
   return {
     type: 'simple',
     setFeatures(list) { features = list; draw(); },
+    setBasemap(m) { basemap = m; draw(); },
     setDraft(d) { draft = d ? { kind: d.kind, vertices: d.vertices.slice() } : null; draw(); },
     setMyLocation(fix) { me = fix; draw(); },
     fitPoints(points) {

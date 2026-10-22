@@ -36,7 +36,7 @@ with sync_playwright() as p:
         check('no JS errors', not errors, errors[:3])
         sw = page.evaluate('navigator.serviceWorker.getRegistration().then(r => !!r)')
         check('service worker registered', sw)
-        check('version 1.2.0', page.evaluate('window.__fgm.version') == '1.2.0', page.evaluate('window.__fgm.version'))
+        check('version 1.3.0', page.evaluate('window.__fgm.version') == '1.3.0', page.evaluate('window.__fgm.version'))
         if shots:
             page.screenshot(path=f'tests/shots/prod_{label}.png')
         ctx.close()

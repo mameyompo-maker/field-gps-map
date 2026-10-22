@@ -28,6 +28,9 @@ URL = f'http://localhost:{PORT}/'
 SAVE_SHOTS = '--shots' in sys.argv
 PHOTO1 = os.path.join(ROOT, 'tests', 'fixtures', 'field_photo.jpg')
 PHOTO2 = os.path.join(ROOT, 'tests', 'fixtures', 'field_photo2.jpg')
+# Overpass の本物の答え(2026-10-22 取得、Malema の町を中心に 10 km 四方)。試験では本物の窓口に問い合わせない。
+OVERPASS = os.path.join(ROOT, 'tests', 'fixtures', 'overpass_malema.json')
+MALEMA = {'lat': -14.955, 'lng': 37.41}
 
 ok = 0
 ng = 0
@@ -111,7 +114,7 @@ def main():
         check('help dialog shown first time', page.locator('#helpDialog[open]').count() == 1)
         page.wait_for_timeout(200)
         check('help starts at the top', page.evaluate("document.querySelector('#helpDialog').scrollTop") == 0)
-        check('version 1.2.0', page.evaluate('window.__fgm.version') == '1.2.0')
+        check('version 1.3.0', page.evaluate('window.__fgm.version') == '1.3.0')
         shot(page, '01_help')
         close_help(page)
         page.wait_for_function("() => document.querySelector('#gpsText').textContent.includes('±')", timeout=10000)
@@ -390,13 +393,52 @@ def main():
         page.wait_for_timeout(800)
         check('no raw keys in menu (en)', not raw_keys(), str(raw_keys()))
         check('menu has 5 items', page.locator('#menuDialog .menu-items button').count() == 5)
-        check('version line offers update check', 'v1.2.0' in page.inner_text('#menuUpdate'), page.inner_text('#menuUpdate'))
+        check('version line offers update check', 'v1.3.0' in page.inner_text('#menuUpdate'), page.inner_text('#menuUpdate'))
         shot(page, '10_menu_en')
         close_dialog(page, '#menuDialog')
 
         # ---------------------------------------------------- 横スクロールが出ないか
         sw = page.evaluate('document.documentElement.scrollWidth')
         check('no horizontal scroll at 390px', sw <= 390, str(sw))
+
+        # ---------------------------------------------------- 圏外用の地図を保存(OpenStreetMap)
+        print('[10b] 圏外用の地図を保存')
+        overpass_body = open(OVERPASS, 'rb').read()
+        asked = []
+
+        def fake_overpass(route):
+            asked.append(route.request.post_data or '')
+            route.fulfill(status=200, content_type='application/json', body=overpass_body)
+        ctx.route('**/api/interpreter', fake_overpass)
+        page.evaluate("(c) => window.__fgm.map.centerOn(c, 15)", MALEMA)
+        page.wait_for_timeout(300)
+        page.click('#btnMenu')
+        page.wait_for_selector('#menuDialog[open]')
+        check('menu says no offline map yet', 'warn' in (page.get_attribute('#stMaps', 'class') or ''), page.inner_text('#stMaps'))
+        close_dialog(page, '#menuDialog')
+        page.click('#btnLayers')
+        page.wait_for_selector('.offmap-save')
+        check('layers dialog offers saving the map', page.is_visible('.offmap-save'), page.inner_text('.offmap-save'))
+        shot(page, '10b_layers')
+        page.click('.offmap-save')
+        page.wait_for_function('window.__fgm.savedAreas.length === 1', timeout=30000)
+        a = page.evaluate('window.__fgm.savedAreas[0]')
+        check('asked Overpass once', len(asked) == 1, str(len(asked)))
+        check('query asks for roads/rivers/buildings', all(k in asked[0] for k in ('highway', 'waterway', 'building')))
+        check('area named after the town', a['name'] == 'Malema', a['name'])
+        check('area has >10000 items', a['n'] > 10000, str(a['n']))
+        check('area about 10 km square', abs((a['bbox'][2] - a['bbox'][0]) * 111.32 - 10) < 0.1)
+        page.wait_for_timeout(300)
+        shot(page, '10c_osm_town')
+        page.evaluate("(c) => window.__fgm.map.centerOn(c, 12)", MALEMA)
+        page.wait_for_timeout(300)
+        shot(page, '10d_osm_wide')
+        page.click('#btnMenu')
+        page.wait_for_selector('#menuDialog[open]')
+        page.wait_for_timeout(500)
+        check('menu counts saved maps', 'ok' in (page.get_attribute('#stMaps', 'class') or ''), page.get_attribute('#stMaps', 'class') + ' ' + page.inner_text('#stMaps'))
+        close_dialog(page, '#menuDialog')
+        ctx.unroute('**/api/interpreter')
 
         # ---------------------------------------------------- 圏外で開き直す(Service Worker)
         print('[11] 圏外')
@@ -408,6 +450,14 @@ def main():
         page.wait_for_selector('#mainScreen:not([hidden])', timeout=15000)
         check('app opens offline', page.is_visible('#fabNew'))
         check('features kept offline', len(page.evaluate('window.__fgm.features')) == 8)
+        check('offline map kept offline', len(page.evaluate('window.__fgm.savedAreas')) == 1)
+        page.evaluate("(c) => window.__fgm.map.centerOn(c, 16)", MALEMA)
+        page.wait_for_timeout(300)
+        shot(page, '11a_offline_osm')
+        page.click('#btnLayers')
+        page.click('.offmap-save')
+        page.wait_for_timeout(300)
+        check('saving offline is refused politely', len(page.evaluate('window.__fgm.savedAreas')) == 1 and page.is_visible('#toast'))
         move(ctx, 300, 300, acc=5)
         page.wait_for_timeout(400)
         page.click('#fabNew')
@@ -426,6 +476,16 @@ def main():
         shot(page, '11_offline_menu')
         close_dialog(page, '#menuDialog')
         ctx.set_offline(False)
+
+        # 保存した地図の削除
+        page.click('#btnLayers')
+        page.wait_for_selector('.offmap-del')
+        page.click('.offmap-del')
+        page.wait_for_selector('#confirmDialog[open]')
+        page.click('#confirmYes')
+        page.wait_for_function('window.__fgm.savedAreas.length === 0', timeout=5000)
+        check('offline map deleted', True)
+        check('records untouched by map delete', len(page.evaluate('window.__fgm.features')) == 9)
 
         real_errors = [e for e in errors if 'maps.googleapis' not in e and 'ERR_INTERNET_DISCONNECTED' not in e and 'Failed to load resource' not in e]
         check('no JS errors', not real_errors, '\n'.join(real_errors[:5]))

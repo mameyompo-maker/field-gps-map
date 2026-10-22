@@ -1,11 +1,11 @@
-# HANDOVER — field_gps_map(2026-10-21)
+# HANDOVER — field_gps_map(2026-10-22)
 
 ## 目的
 
 Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_field_data_report.pdf)を踏まえ、
 「オフラインで動いて Google マップを使い、共有しやすいサービス」を作る。JatLog・field_visit_map の経験を流用してよい。
 
-## 今の状態(2026-10-21 v1.2.0 公開)
+## 今の状態(2026-10-22 v1.3.0 公開)
 
 - 公開URL: https://mameyompo-maker.github.io/field-gps-map/ (試用は末尾に `?demo`)
 - リポジトリ: https://github.com/mameyompo-maker/field-gps-map (public、Pages = main / docs)
@@ -24,6 +24,12 @@ Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_f
   - 保存の分類は図形に合うものだけ(区画5・線4・地点4)。線の既定は「生垣」。
   - 書き出しは KML・Excel(CSV)・ZIP(GeoJSON と写真入り)の3つ。export.js は使うときだけ読み込む。
   - スマホでは地図の +/− を出さない(ピンチで操作)。
+- v1.3.0(10/22、Kazさん「圏外だときつい。先にこの辺の地図を読み込めないか。他のオフライン地図の仕組みを取り入れて」):
+  - 地図ボタン →「この辺りの地図を保存(10 km 四方)」。OpenStreetMap の道・川・池・建物・地名を Overpass API で取り込み、
+    端末の IndexedDB に保存して簡易地図に描く(OsmAnd・Organic Maps と同じ「データを入れて端末で描く」方式)。
+  - 新しいファイル `docs/lib/offline-map.js`。描画は `docs/lib/map-simple.js` の paintBasemap。メニューに保存数を表示。
+  - 衛星写真は保存しない(Google は規約で禁止、Esri は ArcGIS の有料契約、EOX は商用有償)。理由は README に。
+  - 試験用に Overpass の本物の答え(Malema)を `tests/fixtures/overpass_malema.json` に置いた。通し試験 106/106。
 - Firestore ルール:`gpsFeatures/{id}/photos` を追加してデプロイ済み。field_visit_map/firestore.rules にも同じ内容を入れて push 済み。
 - 試験:通し試験 94/94(`tests/e2e_demo.py`)、翻訳 205 キー×3言語の抜け・余りなし、ルールの試験 25/25。
 - 途中で見つけて直したバグ:角のボタンで「直近 2.5 秒で精度が同じ測位」が並ぶと最も古い測位を使い、
@@ -31,6 +37,8 @@ Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_f
 
 ## Kazさんにお願いすること(台帳 #11)
 
+0. 現場に行く前に、電波のある所で作業場所ごとに「この辺りの地図を保存」(Malema 2 の圃場・コミュニティ苗畑など)。
+   圏外で道・川・家が見えるか、実機で確かめる。
 1. 実機(Android)で:Google でログイン → 「新しく記録」→「区画」→ 角を歩いてボタンで記録 → 写真を付ける → 機内モードで記録 →
    電波を戻してアプリを開き、メニューで「すべて送信済み」になるか。
 2. 使う人のメールアドレスが allowedUsers に入っているか(field_visit_map と共通)。
@@ -41,7 +49,8 @@ Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_f
 
 ## 判明した制約・決定事項
 
-- Google の地図タイルは端末に保存しない(利用規約)。圏外は簡易地図で補う。
+- Google の地図タイルは端末に保存しない(利用規約)。圏外は簡易地図+保存した OpenStreetMap で補う。
+- Overpass は混むと 502 や無応答がある(10/22 の取得で本家 502・予備は3分無応答→再試行で成功)。アプリは本家→予備→本家、各90秒。
 - Firestore の書き込みは await しない(圏外で保存ボタンが戻らなくなる)。写真も同じ。
 - アプリを閉じたままの送信(Background Sync)はできない。Firestore SDK の送信待ちはページの中にあるため。
   圏外で記録したら、電波のある所でアプリを一度開いてもらう。

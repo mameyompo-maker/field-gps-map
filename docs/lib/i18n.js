@@ -44,6 +44,18 @@ const DICT = {
     'off.pending': 'Por enviar: {n}', 'off.allSent': 'Tudo enviado', 'off.demo': 'Modo de teste: nada é enviado',
     'off.lastSync': 'Última ligação ao servidor: {time}', 'off.never': 'Ainda sem ligação ao servidor',
 
+    'off.map.title': 'Mapa para usar sem rede',
+    'off.map.note': 'Guarda no telemóvel as estradas, rios, casas e nomes das povoações (OpenStreetMap) de um quadrado de {km} km à volta do centro do mapa. Sem rede, aparecem no mapa simples. A imagem de satélite não pode ser guardada (o Google não permite).',
+    'off.map.save': 'Guardar o mapa desta zona ({km} km)',
+    'off.map.busy': 'A descarregar o mapa… (pode levar até 1 minuto)',
+    'off.map.done': 'Mapa guardado: {name} ({n} elementos). Já pode usar sem rede.',
+    'off.map.fail': 'Não foi possível descarregar o mapa. Tente de novo daqui a pouco.',
+    'off.map.offline': 'Sem rede. Guarde o mapa num lugar com rede (antes de ir ao campo).',
+    'off.map.item': '{date} · {n} elementos',
+    'off.map.remove': 'Apagar mapa',
+    'off.map.removeConfirm': 'Apagar o mapa guardado de “{name}”? (os registos não são apagados)',
+    'off.map.count': 'Mapas guardados para usar sem rede: {n}',
+    'off.map.none': 'Ainda sem mapa guardado — botão do mapa → Guardar o mapa desta zona',
     'upd.checking': 'A procurar atualização…', 'upd.latest': 'Já tem a versão mais recente (v{v}).',
     'upd.found': 'Versão nova encontrada. A app vai recarregar dentro de segundos.',
     'upd.offline': 'Sem rede: não é possível procurar atualização agora.',
@@ -52,8 +64,8 @@ const DICT = {
     'upd.deferred': 'Há uma versão nova. Atualiza sozinha quando terminar a gravação.',
 
     'map.layers': 'Tipo de mapa', 'map.locate': 'A minha posição',
-    'map.layersNote': 'Sem rede, a imagem de satélite não aparece (o Google não permite guardá-la). O mapa simples mostra a sua posição e os registos sobre uma grelha com escala.',
-    'map.simpleTag': 'Mapa simples (sem imagem) — funciona sem rede',
+
+    'map.simpleTag': 'Mapa simples (sem satélite) — funciona sem rede',
     'map.offlineBanner': 'Sem rede: a imagem de satélite pode não carregar. Pode continuar a gravar.',
     'map.onlineBanner': 'A rede voltou.',
     'map.useSimple': 'Usar mapa simples', 'map.useGoogle': 'Mostrar satélite',
@@ -201,6 +213,18 @@ const DICT = {
     'off.pending': 'Waiting to send: {n}', 'off.allSent': 'Everything sent', 'off.demo': 'Test mode: nothing is sent',
     'off.lastSync': 'Last contact with the server: {time}', 'off.never': 'No contact with the server yet',
 
+    'off.map.title': 'Map for use without signal',
+    'off.map.note': 'Saves on the phone the roads, rivers, houses and village names (OpenStreetMap) in a {km} km square around the map centre. Without signal they appear on the simple map. Satellite images cannot be saved (Google does not allow it).',
+    'off.map.save': 'Save the map of this area ({km} km)',
+    'off.map.busy': 'Downloading the map… (may take up to a minute)',
+    'off.map.done': 'Map saved: {name} ({n} items). Ready to use without signal.',
+    'off.map.fail': 'Could not download the map. Please try again in a moment.',
+    'off.map.offline': 'No signal. Save the map where there is signal (before going to the field).',
+    'off.map.item': '{date} · {n} items',
+    'off.map.remove': 'Delete map',
+    'off.map.removeConfirm': 'Delete the saved map of “{name}”? (records are not deleted)',
+    'off.map.count': 'Maps saved for offline use: {n}',
+    'off.map.none': 'No offline map yet — map button → Save the map of this area',
     'upd.checking': 'Checking for update…', 'upd.latest': 'You have the latest version (v{v}).',
     'upd.found': 'New version found. The app will reload in a few seconds.',
     'upd.offline': 'No signal: cannot check for updates now.',
@@ -209,8 +233,8 @@ const DICT = {
     'upd.deferred': 'A new version is available. It will update by itself when the recording ends.',
 
     'map.layers': 'Map type', 'map.locate': 'My location',
-    'map.layersNote': 'Without signal the satellite image does not appear (Google does not allow storing it). The simple map shows your position and the records on a grid with a scale.',
-    'map.simpleTag': 'Simple map (no imagery) — works offline',
+
+    'map.simpleTag': 'Simple map (no satellite) — works without signal',
     'map.offlineBanner': 'No signal: the satellite image may not load. You can keep recording.',
     'map.onlineBanner': 'Signal is back.',
     'map.useSimple': 'Use simple map', 'map.useGoogle': 'Show satellite',
@@ -358,6 +382,18 @@ const DICT = {
     'off.pending': '未送信 {n} 件', 'off.allSent': 'すべて送信済み', 'off.demo': '試用モード:送信はしません',
     'off.lastSync': 'サーバーと最後につながった時刻:{time}', 'off.never': 'まだサーバーとつながっていません',
 
+    'off.map.title': '圏外用の地図',
+    'off.map.note': '地図の真ん中を中心に {km} km 四方の、道・川・建物・集落名(OpenStreetMap)をこの端末に保存します。圏外では簡易地図の上に出ます。衛星写真は Google の規約で保存できません。',
+    'off.map.save': 'この辺りの地図を保存({km} km 四方)',
+    'off.map.busy': '地図を取り込んでいます…(1分ほどかかることがあります)',
+    'off.map.done': '地図を保存しました:{name}({n} 件)。圏外でも使えます。',
+    'off.map.fail': '地図を取り込めませんでした。少し待ってもう一度お試しください。',
+    'off.map.offline': '圏外です。電波のある所で(現場に行く前に)保存してください。',
+    'off.map.item': '{date} · {n} 件',
+    'off.map.remove': '地図を削除',
+    'off.map.removeConfirm': '「{name}」の保存した地図を削除しますか?(記録は消えません)',
+    'off.map.count': '圏外用の地図:{n} か所 保存済み',
+    'off.map.none': '圏外用の地図はまだありません — 地図ボタン →「この辺りの地図を保存」',
     'upd.checking': 'アップデートを確認しています…', 'upd.latest': '最新版です(v{v})。',
     'upd.found': '新しい版が見つかりました。数秒で再読み込みします。',
     'upd.offline': '圏外なので、いまは確認できません。',
@@ -366,8 +402,8 @@ const DICT = {
     'upd.deferred': '新しい版があります。記録が終わったら自動で更新します。',
 
     'map.layers': '地図の種類', 'map.locate': '現在地',
-    'map.layersNote': '圏外では衛星写真は出ません(Google の規約で保存できないため)。簡易地図なら、方眼と縮尺の上に現在地と記録を表示します。',
-    'map.simpleTag': '簡易地図(写真なし)— 圏外でも動きます',
+
+    'map.simpleTag': '簡易地図(衛星写真なし)— 圏外でも動きます',
     'map.offlineBanner': '圏外です。衛星写真が出ないことがありますが、記録は続けられます。',
     'map.onlineBanner': '電波が戻りました。',
     'map.useSimple': '簡易地図にする', 'map.useGoogle': '衛星写真を表示',
@@ -485,7 +521,8 @@ const HELP = {
 <h2>Como usar</h2>
 <h3>1. Antes de ir ao campo (com rede)</h3>
 <ol><li>Abra a app uma vez com rede e entre com a conta Google. No menu deve aparecer <b>Pronto para usar sem rede</b>.</li>
-<li>No Chrome: menu ⋮ → <b>Adicionar ao ecrã principal</b>.</li></ol>
+<li>No Chrome: menu ⋮ → <b>Adicionar ao ecrã principal</b>.</li>
+<li>Mova o mapa para a zona de trabalho → botão do mapa (canto direito) → <b>Guardar o mapa desta zona</b>. Repita para cada zona.</li></ol>
 <h3>2. Registar um campo</h3>
 <ol><li><b>Novo registo</b> → <b>Área</b>. A gravação começa logo.</li>
 <li>Ande pela borda e, em cada canto, toque em <b>Canto aqui</b>. A posição entra na hora. Normalmente bastam 4–10 pontos.</li>
@@ -497,7 +534,7 @@ const HELP = {
 <li>Marcou mal? <b>Desfazer</b> apaga o último ponto.</li></ul>
 <h3>4. Sem rede</h3>
 <ul><li>Os registos e as fotos ficam no telemóvel e são enviados sozinhos quando houver rede — com a app aberta.</li>
-<li>Sem rede a imagem de satélite não aparece; a app mostra um <b>mapa simples</b>.</li></ul>
+<li>Sem rede a imagem de satélite não aparece. O <b>mapa simples</b> mostra as estradas, rios e casas do mapa guardado.</li></ul>
 <h3>5. Partilhar</h3>
 <ul><li>Num registo: <b>Partilhar</b> (texto + fotos para o WhatsApp), <b>Google Maps</b> ou <b>KML</b> (Google Earth).</li>
 <li>Menu → <b>Exportar</b>: Google Earth, Excel, ou tudo num ZIP com fotos.</li>
@@ -506,7 +543,8 @@ const HELP = {
 <h2>How to use</h2>
 <h3>1. Before going to the field (with signal)</h3>
 <ol><li>Open the app once with signal and sign in with Google. The menu should say <b>Ready to use offline</b>.</li>
-<li>In Chrome: menu ⋮ → <b>Add to Home screen</b>.</li></ol>
+<li>In Chrome: menu ⋮ → <b>Add to Home screen</b>.</li>
+<li>Move the map to the work area → map button (right side) → <b>Save the map of this area</b>. Repeat for each area.</li></ol>
 <h3>2. Record a field</h3>
 <ol><li><b>New record</b> → <b>Area</b>. Recording starts at once.</li>
 <li>Walk along the edge and, at each corner, tap <b>Corner here</b>. The position is added instantly. Usually 4–10 points are enough.</li>
@@ -518,7 +556,7 @@ const HELP = {
 <li>Marked the wrong place? <b>Undo</b> removes the last point.</li></ul>
 <h3>4. Without signal</h3>
 <ul><li>Records and photos stay on the phone and upload by themselves when there is signal — with the app open.</li>
-<li>Without signal the satellite image does not appear; the app shows a <b>simple map</b>.</li></ul>
+<li>Without signal the satellite image does not appear. The <b>simple map</b> shows the roads, rivers and houses of the saved map.</li></ul>
 <h3>5. Sharing</h3>
 <ul><li>In a record: <b>Share</b> (text + photos to WhatsApp), <b>Google Maps</b> or <b>KML</b> (Google Earth).</li>
 <li>Menu → <b>Export</b>: Google Earth, Excel, or everything in a ZIP with photos.</li>
@@ -527,7 +565,8 @@ const HELP = {
 <h2>使い方</h2>
 <h3>1. 現場に行く前に(電波のある所で)</h3>
 <ol><li>電波のある所で一度アプリを開き、Google でログインします。メニューに「<b>圏外で使う準備ができています</b>」と出れば OK。</li>
-<li>Chrome のメニュー ⋮ →「<b>ホーム画面に追加</b>」。</li></ol>
+<li>Chrome のメニュー ⋮ →「<b>ホーム画面に追加</b>」。</li>
+<li>地図を作業する場所へ動かし、右の地図ボタン →「<b>この辺りの地図を保存</b>」。場所ごとにくり返します。</li></ol>
 <h3>2. 圃場を記録する</h3>
 <ol><li>「<b>新しく記録</b>」→「<b>区画</b>」。すぐに記録が始まります。</li>
 <li>縁を歩き、角に来たら「<b>ここを角に</b>」をタップ。その場の位置がすぐ入ります。ふつうは 4〜10 点で足ります。</li>
@@ -539,7 +578,7 @@ const HELP = {
 <li>打ち間違えたら「<b>1つ戻す</b>」で最後の点を消せます。</li></ul>
 <h3>4. 圏外のとき</h3>
 <ul><li>記録と写真は端末に保存され、電波が戻ったときにアプリを開いていれば自動で送られます。</li>
-<li>圏外では衛星写真は出ず、<b>簡易地図</b>で表示します。</li></ul>
+<li>圏外では衛星写真は出ません。<b>簡易地図</b>に、保存しておいた道・川・建物が出ます。</li></ul>
 <h3>5. 共有</h3>
 <ul><li>記録を開いて「<b>共有</b>」(文章と写真を WhatsApp へ)、「<b>Google マップ</b>」、「<b>KML</b>」(Google Earth 用)。</li>
 <li>メニュー →「<b>書き出し</b>」:Google Earth 用、Excel 用、写真も入った ZIP。</li>

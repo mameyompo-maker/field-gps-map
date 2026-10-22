@@ -311,6 +311,15 @@ button { cursor: pointer; }
 .menu-version { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; margin: 10px 0 0; padding: 8px; border: 0; background: none; color: var(--muted-foreground); font-size: 13px; }
 .menu-version .ic { width: 16px; height: 16px; }
 .menu-version .upd-dot.inline { margin-left: 2px; }
+/* 圏外用の地図(地図の種類のダイアログの中) */
+.offmap { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.offmap h3 { margin: 0; font-size: 16px; }
+.offmap p { margin: 0; line-height: 1.5; }
+.offmap-save { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.offmap-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.offmap-list li { display: flex; align-items: center; gap: 6px; background: var(--surface-muted); border-radius: 14px; padding: 4px 4px 4px 0; }
+.offmap-go { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; border: 0; background: none; padding: 6px 12px; text-align: left; color: var(--foreground); }
+.offmap-list .icon-btn { flex: none; }
 .export-list { display: flex; flex-direction: column; gap: 8px; }
 .export-list button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; border: 1px solid var(--border); border-radius: 18px; background: var(--surface); padding: 12px 14px; }
 .export-list button span { font-size: 13px; color: var(--muted-foreground); }
