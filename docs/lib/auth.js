@@ -15,6 +15,10 @@ import {
 
 const CHECK_TIMEOUT_MS = 10000;
 const LS_PREFIX = 'fgm.allowed.';
+const LS_ADMIN = 'fgm.admin.';
+// 管理者 = allowedUsers/{メール} に admin: true がある人(Firebase Console で付ける)。
+// 管理者の画面は全員が読める記録を集計するだけなので、ルールの変更は要らない。
+let admin = false;
 
 let current = null;
 let state = 'signed-out';
@@ -23,7 +27,7 @@ let generation = 0;
 let resolved = false;    // onAuthStateChanged が一度でも返ってきたか(起動直後の「未確定」を区別する)
 const listeners = [];
 
-const snapshot = () => ({ user: current, state, error: lastError, resolved });
+const snapshot = () => ({ user: current, state, error: lastError, resolved, admin });
 function notify() { const s = snapshot(); listeners.forEach((fn) => fn(s)); }
 
 export function onAuthChange(fn) {
@@ -33,6 +37,7 @@ export function onAuthChange(fn) {
 }
 
 export function currentUser() { return current; }
+export function isAdmin() { return admin; }
 
 export async function signInWithGoogle() {
   const provider = new GoogleAuthProvider();
@@ -55,6 +60,15 @@ export async function signOutUser() { await signOut(auth); }
 function cachedAllowed(email) {
   try { return localStorage.getItem(LS_PREFIX + email) === '1'; } catch { return false; }
 }
+function cachedAdmin(email) {
+  try { return localStorage.getItem(LS_ADMIN + email) === '1'; } catch { return false; }
+}
+function rememberAdmin(email, yes) {
+  try {
+    if (yes) localStorage.setItem(LS_ADMIN + email, '1');
+    else localStorage.removeItem(LS_ADMIN + email);
+  } catch { /* 書けなくても致命的ではない */ }
+}
 function rememberAllowed(email, ok) {
   try {
     if (ok) localStorage.setItem(LS_PREFIX + email, '1');
@@ -67,27 +81,32 @@ async function fetchAllowed(email) {
     setTimeout(() => reject(new Error('timeout')), CHECK_TIMEOUT_MS);
   });
   const snap = await Promise.race([getDoc(doc(db, 'allowedUsers', email)), timeout]);
-  return snap.exists() && snap.data().active !== false;
+  const ok = snap.exists() && snap.data().active !== false;
+  return { ok, admin: ok && snap.data().admin === true };
 }
 
 async function runCheck() {
   const my = ++generation;
   const email = current.email;
   // 圏外で開き直したときに締め出さない: 一度許可された端末はすぐ地図を出し、照会は裏で行う。
+  admin = cachedAdmin(email);
   if (cachedAllowed(email)) { state = 'allowed'; notify(); }
   else { state = 'checking'; lastError = ''; notify(); }
 
   let next;
+  let adminChanged = false;
   try {
-    const ok = await fetchAllowed(email);
-    rememberAllowed(email, ok);
-    next = ok ? 'allowed' : 'denied';
+    const res = await fetchAllowed(email);
+    rememberAllowed(email, res.ok);
+    rememberAdmin(email, res.admin);
+    if (my === generation && res.admin !== admin) { admin = res.admin; adminChanged = true; }
+    next = res.ok ? 'allowed' : 'denied';
   } catch (err) {
     if (cachedAllowed(email)) next = 'allowed';
     else { next = 'error'; lastError = (err && err.message) || String(err); }
   }
   if (my !== generation) return;
-  if (next !== state) { state = next; notify(); }
+  if (next !== state || adminChanged) { state = next; notify(); }
 }
 
 export function recheckAllowed() {

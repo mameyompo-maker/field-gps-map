@@ -20,6 +20,7 @@
 
 <!-- アイコン(自前の SVG。絵文字は端末ごとに大きさ・見た目が変わるので使わない) -->
 <svg id="iconDefs" width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-chart" viewBox="0 0 24 24"><path fill="currentColor" d="M4 20V10h3v10H4zm6.5 0V4h3v16h-3zM17 20v-7h3v7h-3z"/></symbol>
   <symbol id="i-menu" viewBox="0 0 24 24"><path fill="currentColor" d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></symbol>
   <symbol id="i-plus" viewBox="0 0 24 24"><path fill="currentColor" d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z"/></symbol>
   <symbol id="i-minus" viewBox="0 0 24 24"><path fill="currentColor" d="M5 11h14v2H5z"/></symbol>
@@ -221,6 +222,7 @@
     <div id="stLast" class="status-row muted small"></div>
   </div>
   <nav class="menu-items">
+    <button type="button" data-act="admin" id="menuAdmin" hidden><svg class="ic"><use href="#i-chart"/></svg><span data-i18n="menu.admin"></span></button>
     <button type="button" data-act="export"><svg class="ic"><use href="#i-download"/></svg><span data-i18n="menu.export"></span></button>
     <button type="button" data-act="import"><svg class="ic"><use href="#i-upload"/></svg><span data-i18n="menu.import"></span></button>
     <button type="button" data-act="lang"><svg class="ic"><use href="#i-globe"/></svg><span data-i18n="menu.lang"></span></button>
@@ -238,6 +240,34 @@
     <button type="button" data-lang="en"><svg class="ic"><use href="#i-check"/></svg><span>English</span></button>
     <button type="button" data-lang="ja"><svg class="ic"><use href="#i-check"/></svg><span>日本語</span></button>
   </nav>
+  <div class="dlg-buttons"><button type="button" class="btn-ghost tappable" data-close data-i18n="common.close"></button></div>
+</dialog>
+
+<dialog id="adminDialog" class="dlg dlg-wide">
+  <h2 data-i18n="adm.title"></h2>
+  <p class="muted small" data-i18n="adm.lead"></p>
+  <div id="admPeriods" class="chips wrap adm-periods">
+    <button type="button" class="chip-sel tappable" data-p="today" data-i18n="adm.today"></button>
+    <button type="button" class="chip-sel tappable" data-p="yesterday" data-i18n="adm.yesterday"></button>
+    <button type="button" class="chip-sel tappable" data-p="d7" data-i18n="adm.d7"></button>
+    <button type="button" class="chip-sel tappable" data-p="d30" data-i18n="adm.d30"></button>
+    <button type="button" class="chip-sel tappable" data-p="all" data-i18n="adm.all"></button>
+    <input type="date" id="admDate" class="adm-date" aria-label="date">
+  </div>
+  <div id="admTotals" class="adm-cards"></div>
+  <h3 class="adm-h" data-i18n="adm.byPerson"></h3>
+  <div class="adm-table-wrap"><table id="admPeople" class="adm-table"></table></div>
+  <div id="admDaysBox">
+    <h3 class="adm-h" data-i18n="adm.byDay"></h3>
+    <div class="adm-table-wrap"><table id="admDays" class="adm-table"></table></div>
+  </div>
+  <h3 class="adm-h" data-i18n="adm.list"></h3>
+  <ul id="admList" class="adm-list"></ul>
+  <div class="adm-export">
+    <button type="button" class="btn-primary tappable" data-adm="csv"><svg class="ic"><use href="#i-download"/></svg><span data-i18n="adm.csv"></span></button>
+    <button type="button" class="btn-secondary tappable" data-adm="summary"><svg class="ic"><use href="#i-chart"/></svg><span data-i18n="adm.summaryCsv"></span></button>
+    <button type="button" class="btn-secondary tappable" data-adm="kml"><svg class="ic"><use href="#i-download"/></svg><span>KML</span></button>
+  </div>
   <div class="dlg-buttons"><button type="button" class="btn-ghost tappable" data-close data-i18n="common.close"></button></div>
 </dialog>
 

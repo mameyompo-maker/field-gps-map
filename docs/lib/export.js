@@ -13,6 +13,10 @@ const esc = (s) => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 const iso = (ms) => (ms ? new Date(ms).toISOString() : '');
+// 端末の時刻帯での日付・時刻(Excel で日ごと・人ごとに集計しやすいように。モザンビークなら UTC+2)
+const pad = (n) => String(n).padStart(2, '0');
+const localDate = (ms) => { if (!ms) return ''; const d = new Date(ms); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const localTime = (ms) => { if (!ms) return ''; const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
 // KML の色は aabbggrr
 function kmlColor(hex, alpha) {
@@ -110,7 +114,8 @@ function wkt(f) {
 
 export function toCSV(features, { catName = (k) => k } = {}) {
   const head = ['id', 'name', 'kind', 'category', 'group', 'area_ha', 'area_m2', 'length_m', 'center_lat', 'center_lng',
-    'n_vertices', 'accuracy_median_m', 'accuracy_max_m', 'method', 'recorded_by', 'recorded_by_email', 'recorded_at', 'photos', 'notes', 'wkt'];
+    'n_vertices', 'accuracy_median_m', 'accuracy_max_m', 'method', 'recorded_by', 'recorded_by_email', 'recorded_at',
+    'recorded_date', 'recorded_time', 'updated_by', 'updated_at', 'photos', 'notes', 'wkt'];
   const q = (s) => {
     const t = String(s == null ? '' : s);
     return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
@@ -124,7 +129,9 @@ export function toCSV(features, { catName = (k) => k } = {}) {
       c.lat != null ? c.lat.toFixed(7) : '', c.lng != null ? c.lng.toFixed(7) : '',
       (f.vertices || []).length, f.accMedian, f.accMax, f.method,
       f.createdBy && f.createdBy.name, f.createdBy && f.createdBy.email,
-      iso(f.createdAtMs || f.clientCreatedAt), f.photoCount || 0, f.notes, wkt(f)
+      iso(f.createdAtMs || f.clientCreatedAt),
+      localDate(f.clientCreatedAt || f.createdAtMs), localTime(f.clientCreatedAt || f.createdAtMs),
+      f.updatedBy && f.updatedBy.name, iso(f.updatedAtMs), f.photoCount || 0, f.notes, wkt(f)
     ].map(q).join(',');
   });
   return '﻿' + [head.join(','), ...rows].join('\r\n') + '\r\n';

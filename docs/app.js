@@ -24,8 +24,9 @@ import { downloadArea, listAreas, deleteArea, mergeAreas, satKeys, AREA_KM, WIDE
 import { loadIndex, pruneTiles, resetMemory } from './lib/imagery.js';
 // 書き出し・読み込みは使うときだけ読み込む(起動を軽くする)
 const loadExport = () => import('./lib/export.js');
+const loadAdmin = () => import('./lib/admin-stats.js');
 
-const VERSION = '1.4.0';
+const VERSION = '1.5.0';
 const $ = (id) => document.getElementById(id);
 const DEMO_KEY = 'fgm.demo';
 const VIEW_KEY = 'fgm.view';
@@ -33,6 +34,7 @@ const LAST_SERVER_KEY = 'fgm.lastServer';
 
 let store = null;
 let user = null;
+let isAdminUser = false;    // allowedUsers の行に admin: true がある人(体験モードでは誰でも)
 let features = [];          // 保存先から来た全件(アーカイブ済みを除く)
 let storeMeta = { pending: 0, photosPending: 0, fromCache: true, error: '' };
 let mapCtl = null;
@@ -99,6 +101,8 @@ async function bootFirebase() {
       $('loginStatus').textContent = t('login.checking');
       showScreen('login');
     } else if (s.state === 'allowed') {
+      isAdminUser = !!s.admin;
+      renderMenuUser();
       startMain(s.user, 'firestore');
     } else if (s.state === 'denied') {
       $('deniedText').textContent = t('denied.text', { email: s.user.email });
@@ -183,6 +187,8 @@ function renderMenuUser() {
   if (!store) return;
   $('menuEmail').textContent = store.mode === 'local' ? t('demo.note') : user.email;
   $('menuSignoutText').textContent = store.mode === 'local' ? t('menu.leaveDemo') : t('menu.signout');
+  // 管理者の集計:メニューに出すかどうかだけの切り替え(記録はもともと全員が読める。書き換えの権限は変わらない)
+  $('menuAdmin').hidden = !(store.mode === 'local' || isAdminUser);
 }
 
 // ================================================================ 地図
@@ -974,6 +980,105 @@ async function archiveFeature() {
   toast(t('d.archived'));
 }
 
+// ================================================================ 管理者:チームの集計
+
+const adm = { period: 'today', date: '' };
+
+function admPeriodLabel() {
+  return adm.period === 'day' ? adm.date : t('adm.' + adm.period);
+}
+
+async function admCurrent() {
+  const A = await loadAdmin();
+  const list = A.inRange(features, A.periodRange(adm.period, adm.date)).sort((a, b) => A.recordedAt(b) - A.recordedAt(a));
+  return { A, list, sum: A.summarize(list) };
+}
+
+function openAdmin() {
+  $('adminDialog').showModal();
+  renderAdmin();
+}
+
+const escHtml = (x) => String(x == null ? '' : x).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+async function renderAdmin() {
+  const dlg = $('adminDialog');
+  dlg.querySelectorAll('[data-p]').forEach((b) => b.classList.toggle('on', b.dataset.p === adm.period));
+  $('admDate').classList.toggle('on', adm.period === 'day');
+  const { A, list, sum } = await admCurrent();
+  const tt = sum.total;
+  const lang = getLang();
+  const multiDay = !['today', 'yesterday', 'day'].includes(adm.period);
+  const hm = (ms) => (ms && ms < Infinity ? A.localTime(ms) : '');
+  const md = (ms) => (ms && ms < Infinity ? A.localDate(ms).slice(5) : '');
+  const ha = (x) => (x.polygons ? geo.fmtHa(x.areaM2, lang) : '');
+  const km = (x) => (x.lines ? geo.fmtLength(x.lengthM, lang) : '');
+
+  $('admTotals').innerHTML = [
+    [tt.n, t('adm.records'), t('adm.kinds', { p: tt.polygons, l: tt.lines, pt: tt.points })],
+    [geo.fmtHa(tt.areaM2, lang), t('adm.area')],
+    [geo.fmtLength(tt.lengthM, lang), t('adm.length')],
+    [tt.photos, t('adm.photos')],
+    [tt.people, t('adm.people')]
+  ].map(([v, k, sub]) => `<div class="adm-card"><b>${escHtml(v)}</b><span>${escHtml(k)}${sub ? '<br>' + escHtml(sub) : ''}</span></div>`).join('');
+
+  const pT = $('admPeople');
+  if (!sum.people.length) pT.innerHTML = `<tr><td>${escHtml(t('adm.none'))}</td></tr>`;
+  else {
+    pT.innerHTML = `<tr><th>${escHtml(t('adm.col.person'))}</th><th class="num">${escHtml(t('adm.col.n'))}</th><th class="num">${escHtml(t('adm.col.area'))}</th><th class="num">${escHtml(t('adm.col.len'))}</th><th>${escHtml(multiDay ? t('adm.col.date') : t('adm.col.time'))}</th></tr>`
+      + sum.people.map((p) => `<tr><td class="who">${escHtml(p.name)}${p.email && p.email !== p.name ? `<small>${escHtml(p.email)}</small>` : ''}</td>`
+        + `<td class="num">${p.n}</td><td class="num">${escHtml(ha(p))}</td><td class="num">${escHtml(km(p))}</td>`
+        + `<td>${escHtml(multiDay ? `${md(p.first)} – ${md(p.last)}` : `${hm(p.first)} – ${hm(p.last)}`)}</td></tr>`).join('');
+  }
+
+  $('admDaysBox').hidden = !multiDay || !sum.days.length;
+  $('admDays').innerHTML = `<tr><th>${escHtml(t('adm.col.date'))}</th><th class="num">${escHtml(t('adm.col.n'))}</th><th class="num">${escHtml(t('adm.people'))}</th><th class="num">${escHtml(t('adm.col.area'))}</th><th class="num">${escHtml(t('adm.col.len'))}</th></tr>`
+    + sum.days.map((d) => `<tr data-day="${d.date}"><td>${d.date}</td><td class="num">${d.n}</td><td class="num">${d.people}</td><td class="num">${escHtml(ha(d))}</td><td class="num">${escHtml(km(d))}</td></tr>`).join('');
+  // 日をタップすると、その日だけの集計に切り替える
+  $('admDays').querySelectorAll('[data-day]').forEach((tr) => tr.addEventListener('click', () => {
+    adm.period = 'day';
+    adm.date = tr.dataset.day;
+    $('admDate').value = adm.date;
+    renderAdmin();
+  }));
+
+  const ul = $('admList');
+  ul.innerHTML = '';
+  if (!list.length) ul.innerHTML = `<li class="empty">${escHtml(t('adm.none'))}</li>`;
+  const MAX = 200;
+  list.slice(0, MAX).forEach((f) => {
+    const li = document.createElement('li');
+    const ms = A.recordedAt(f);
+    const val = f.kind === 'polygon' ? geo.fmtHa(f.areaM2, lang) : f.kind === 'line' ? geo.fmtLength(f.lengthM, lang) : '';
+    li.innerHTML = '<span class="t"></span><span class="n"></span><span class="v"></span>';
+    li.querySelector('.t').textContent = `${multiDay ? md(ms) + ' ' : ''}${hm(ms)}`;
+    li.querySelector('.n').textContent = `${f.name || t('d.noName')} · ${(f.createdBy && f.createdBy.name) || ''}`;
+    li.querySelector('.v').textContent = val;
+    li.addEventListener('click', () => { $('adminDialog').close(); openDetail(f.id, { fit: true }); });
+    ul.appendChild(li);
+  });
+  if (list.length > MAX) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = t('adm.more', { n: list.length - MAX });
+    ul.appendChild(li);
+  }
+}
+
+async function admExport(fmt) {
+  const { A, list, sum } = await admCurrent();
+  if (!list.length) { toast(t('adm.none')); return; }
+  const { toKML, toCSV, download, stamp } = await loadExport();
+  const tag = adm.period === 'day' ? adm.date : adm.period === 'today' ? A.localDate(Date.now()) : adm.period;
+  const base = `field_gps_map_${tag}_${stamp()}`;
+  const asc = [...list].reverse();      // ファイルの中は古い順
+  const opts = { title: `Field GPS Map ${admPeriodLabel()}`, catName: (k) => t('cat.' + k) };
+  if (fmt === 'csv') download(toCSV(asc, opts), `${base}.csv`, 'text/csv;charset=utf-8');
+  else if (fmt === 'summary') download(A.summaryCSV(sum, admPeriodLabel()), `${base}_summary.csv`, 'text/csv;charset=utf-8');
+  else download(toKML(asc, opts), `${base}.kml`, 'application/vnd.google-earth.kml+xml');
+  toast(t('exp.done', { n: list.length }));
+}
+
 // ================================================================ 書き出し・読み込み
 
 function exportList() {
@@ -1492,6 +1597,7 @@ function wireStatic() {
     $('menuDialog').close();
     const act = b.dataset.act;
     if (act === 'export') openExport();
+    else if (act === 'admin') openAdmin();
     else if (act === 'import') { fillGroupDatalist(); $('importDialog').showModal(); }
     else if (act === 'help') openHelp();
     else if (act === 'lang') openLangDialog();
@@ -1505,6 +1611,9 @@ function wireStatic() {
   $('dEdit').addEventListener('click', () => openDetailId && openSaveDialog(openDetailId));
   $('dArchive').addEventListener('click', archiveFeature);
 
+  $('adminDialog').querySelectorAll('[data-p]').forEach((b) => b.addEventListener('click', () => { adm.period = b.dataset.p; renderAdmin(); }));
+  $('admDate').addEventListener('change', (e) => { if (e.target.value) { adm.period = 'day'; adm.date = e.target.value; renderAdmin(); } });
+  $('adminDialog').querySelectorAll('[data-adm]').forEach((b) => b.addEventListener('click', () => admExport(b.dataset.adm)));
   $('exportDialog').querySelectorAll('[data-fmt]').forEach((b) => b.addEventListener('click', () => doExport(b.dataset.fmt)));
   $('impFile').addEventListener('change', onImportFile);
   $('impOk').addEventListener('click', doImport);

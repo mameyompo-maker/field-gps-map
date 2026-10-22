@@ -86,6 +86,19 @@ Cache Storage `fgm-s2-v1` に入れる(`docs/lib/imagery.js`)。地図を消す�
   リストへの追加は Firebase Console から(field_visit_map の SETUP.md と同じ手順)。
 - **試用モード**:URL の末尾に `?demo` を付けると、ログインなしで動く。記録はその端末の中だけに残り、送信されない。研修・練習用。
 
+## 管理者:チームの集計(v1.5.0)
+
+- 許可リストの行に **`admin: true`(boolean)** を足した人だけ、メニューに「チームの集計(管理者)」が出る
+  (Firebase Console → Firestore → `allowedUsers` → その人のメールアドレスの行 → フィールドを追加)。次にアプリを開いたときから出る。
+  試用モードでは誰でも出る(練習用)。
+- 中身:期間(今日・昨日・7日間・30日間・全部・日付指定)ごとの合計(件数・面積 ha・線の長さ・写真・人数)、
+  人ごと(件数・面積・最初と最後の時刻)、日ごと(タップでその日へ)、その期間の記録の一覧(タップで詳細)。
+- 書き出し:その期間の記録の Excel(CSV。1行1件、`recorded_date`・`recorded_time`・`recorded_by` 付き)、
+  集計の Excel(人ごと+合計+日ごと)、KML。
+- 別の記録帳は作っていない。記録そのものに「誰が(createdBy)・いつ(端末の時刻 clientCreatedAt、サーバーの時刻 createdAt)」が入っている。
+  日付は端末の時刻帯で分ける。圏外で記録して後で送ったものも、記録した時刻で数える。
+- `admin` は画面に出すかどうかだけの印。記録はもともと許可された全員が読めるので、ルールは変えていない。
+
 ## 構成
 
 - `docs/` … アプリ本体(GitHub Pages で公開する。ビルド不要の ES modules)
@@ -97,7 +110,7 @@ Cache Storage `fgm-s2-v1` に入れる(`docs/lib/imagery.js`)。地図を消す�
 - `tests/fixtures/overpass_malema.json`・`overpass_wide_malema.json` … Overpass の本物の答え(Malema の 10 km 四方と半径 100 km、試験用。小さく詰め直してある)
 - `tools/s2_tiles.py` … 衛星写真のタイルを作る(出力は `../field_gps_imagery/docs/s2/`)
 - `tests/` … `node tests/test_geo.mjs`(面積・距離)、`node tests/test_i18n.mjs`(翻訳の抜け)、
-  `python tests/e2e_demo.py --shots`(Edge で歩行・写真・3言語・圏外・圏外用の地図・衛星写真を模擬した通し試験。117項目)、
+  `python tests/e2e_demo.py --shots`(Edge で歩行・写真・3言語・圏外・圏外用の地図・衛星写真・管理者の集計を模擬した通し試験。132項目)、
   `python tests/check_production.py --shots`(本番URLの確認)
 
 ## データの形(Firestore `gpsFeatures`)

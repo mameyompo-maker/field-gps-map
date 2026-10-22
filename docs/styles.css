@@ -340,6 +340,33 @@ button { cursor: pointer; }
   .action span { width: 42px; height: 42px; }
 }
 
+/* 管理者:チームの集計 */
+.dlg-wide { width: min(640px, calc(100vw - 24px)); }
+.adm-periods { margin: 10px 0 12px; align-items: center; }
+#adminDialog .adm-date { width: auto; max-width: 170px; flex: none; min-height: 34px; border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 5px 10px; font: inherit; font-size: 16px; background: var(--surface); color: var(--foreground); }
+#adminDialog .adm-date.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.adm-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.adm-card { border: 1px solid var(--border); border-radius: 16px; padding: 10px 12px; }
+.adm-card b { display: block; font-size: 20px; line-height: 1.2; }
+.adm-card span { font-size: 12px; color: var(--muted-foreground); }
+.adm-h { font-size: 15px; margin: 16px 0 6px; }
+.adm-table-wrap { overflow-x: auto; }
+.adm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.adm-table th, .adm-table td { text-align: left; padding: 6px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.adm-table th { color: var(--muted-foreground); font-weight: 600; }
+.adm-table td.num, .adm-table th.num { text-align: right; }
+.adm-table td.who { white-space: normal; min-width: 100px; }
+.adm-table td.who small { display: block; color: var(--muted-foreground); }
+.adm-table tr[data-day] { cursor: pointer; }
+.adm-list { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.adm-list li { display: flex; gap: 8px; padding: 7px 2px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.adm-list li .t { flex: none; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+.adm-list li .n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.adm-list li .v { flex: none; }
+.adm-list li.empty { cursor: default; color: var(--muted-foreground); }
+.adm-export { display: grid; gap: 8px; margin-top: 16px; }
+.adm-export button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: normal; }
+
 @media (prefers-reduced-motion: reduce) {
   .fade-up, .sheet, .dlg[open], .toast, .banner, .photo-strip .ph img, .photo-grid .ph img { animation: none; }
   .tappable:active { transform: none; }

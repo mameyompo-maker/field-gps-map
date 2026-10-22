@@ -5,7 +5,7 @@
 Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_field_data_report.pdf)を踏まえ、
 「オフラインで動いて Google マップを使い、共有しやすいサービス」を作る。JatLog・field_visit_map の経験を流用してよい。
 
-## 今の状態(2026-10-22 v1.4.0 公開)
+## 今の状態(2026-10-22 v1.5.0 公開)
 
 - 公開URL: https://mameyompo-maker.github.io/field-gps-map/ (試用は末尾に `?demo`)
 - リポジトリ: https://github.com/mameyompo-maker/field-gps-map (public、Pages = main / docs)
@@ -38,6 +38,11 @@ Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_f
     簡易地図の一番下に描く(衛星写真の上では方眼・池の塗り・建物の塗りを省く)。
   - sw.js の掃除は `field-gps-map-` で始まるキャッシュだけ消すように変えた(衛星写真を消さないため)。
   - 範囲を広げるときは s2_tiles.py の CENTER/HALF_KM を変えて作り直し、imagery リポジトリへ push(アプリは変更不要)。
+- v1.5.0(10/22、Kazさん「今日の記録の合計や、まとめて書き出す管理者モードとデータが必要」):
+  - メニュー「チームの集計(管理者)」:期間ごとの合計・人ごと・日ごと・記録一覧、期間の CSV/集計 CSV/KML。
+    `docs/lib/admin-stats.js`。出すかどうかは `allowedUsers/{email}.admin === true`(auth.js が読んで端末に覚える)。試用モードでは常に出る。
+  - 全体の CSV にも `recorded_date`・`recorded_time`(端末の時刻帯)・`updated_by`・`updated_at` を足した。
+  - Kazさんの行への `admin: true` は Claude からは書けなかった(権限付与のため自動実行が止められた)→ Kazさんが Console で足す。
 - Firestore ルール:`gpsFeatures/{id}/photos` を追加してデプロイ済み。field_visit_map/firestore.rules にも同じ内容を入れて push 済み。
 - 試験:通し試験 94/94(`tests/e2e_demo.py`)、翻訳 205 キー×3言語の抜け・余りなし、ルールの試験 25/25。
 - 途中で見つけて直したバグ:角のボタンで「直近 2.5 秒で精度が同じ測位」が並ぶと最も古い測位を使い、
@@ -50,6 +55,7 @@ Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_f
 1. 実機(Android)で:Google でログイン → 「新しく記録」→「区画」→ 角を歩いてボタンで記録 → 写真を付ける → 機内モードで記録 →
    電波を戻してアプリを開き、メニューで「すべて送信済み」になるか。
 2. 使う人のメールアドレスが allowedUsers に入っているか(field_visit_map と共通)。
+3. 管理者にする人(まず Kazさん)の allowedUsers の行に `admin`(boolean)= true を足す(README「管理者」の節)。
 
 ## 次にやること(Claude 側)
 

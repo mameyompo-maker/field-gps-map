@@ -18,7 +18,7 @@
  * docs/ のファイルを1つでも変えたら CACHE の版数を必ず上げること。
  * 上げ忘れると、既に開いた端末が古い版を使い続ける(field_visit_map で実際に詰まった)。
  */
-const CACHE = 'field-gps-map-v6';
+const CACHE = 'field-gps-map-v7';
 
 const FILES = [
   './',
@@ -41,7 +41,7 @@ const FILES = [
   './lib/zip.js',
   './lib/photos.js',
   './lib/offline-map.js',
-  './lib/imagery.js',
+  './lib/imagery.js', './lib/admin-stats.js',
   './lib/store-local.js',
   './lib/store-firestore.js',
   './lib/firebase-init.js',
