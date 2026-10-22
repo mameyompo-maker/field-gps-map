@@ -20,14 +20,14 @@ import { createSimpleMap } from './lib/map-simple.js';
 import { getSettings, saveSettings } from './lib/settings.js';
 import { catColor, defaultCategory, categoriesFor } from './lib/categories.js';
 import { preparePhoto, dataUrlToFile, MAX_PHOTOS } from './lib/photos.js';
-import { downloadArea, listAreas, deleteArea, mergeAreas, satKeys, AREA_KM, WIDE_KM } from './lib/offline-map.js';
-import { loadIndex, pruneTiles, resetMemory } from './lib/imagery.js';
+import { downloadArea, listAreas, deleteArea, mergeAreas, AREA_KM, WIDE_KM } from './lib/offline-map.js';
+import { loadIndex, resetMemory, syncAll, syncState, syncedBefore } from './lib/imagery.js';
 import { importImagery, listImagery, deleteImagery } from './lib/user-imagery.js';
 // 書き出し・読み込みは使うときだけ読み込む(起動を軽くする)
 const loadExport = () => import('./lib/export.js');
 const loadAdmin = () => import('./lib/admin-stats.js');
 
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 const $ = (id) => document.getElementById(id);
 const DEMO_KEY = 'fgm.demo';
 const VIEW_KEY = 'fgm.view';
@@ -179,6 +179,7 @@ async function startMain(u, mode) {
   if (m) pendingOpenId = m[1];
 
   if (!safeGet('fgm.helpSeen')) { safeSet('fgm.helpSeen', '1'); openHelp(); }
+  setTimeout(startS2Sync, 5000);
   startUpdateWatch();
 }
 
@@ -289,6 +290,7 @@ window.addEventListener('online', () => {
     showBanner(t('map.onlineBanner'), t('map.useGoogle'), () => { hideBanner(); initMap(); });
   }
   checkForUpdate({ silent: true });
+  setTimeout(startS2Sync, 3000);
 });
 
 // ================================================================ GPS 表示
@@ -1228,6 +1230,14 @@ async function renderStatus() {
   maps.className = 'status-row ' + (savedAreas.length ? 'ok' : 'warn');
   maps.querySelector('span').textContent = savedAreas.length ? t('off.map.count', { n: savedAreas.length }) : t('off.map.none');
 
+  const sat = $('stSat');
+  const ss = syncState;
+  sat.className = 'status-row ' + (ss.done || syncedBefore() ? 'ok' : 'warn');
+  sat.querySelector('span').textContent = ss.done || (syncedBefore() && !ss.running)
+    ? t('s2.ready', { n: (ss.total || 9910).toLocaleString(locale()) })
+    : ss.running ? t('s2.busy', { have: ss.have.toLocaleString(locale()), total: ss.total.toLocaleString(locale()) })
+      : t('s2.waiting');
+
   const off = $('stOffline');
   const st = await askSw({ type: 'status' });
   const ready = !!(st && st.ready);
@@ -1410,8 +1420,34 @@ function refreshBasemap() {
 async function refreshImagery() {
   if (!simpleCtl) return;
   simpleCtl.setUserImagery(userImagery);
-  const any = savedAreas.some((a) => a.sat > 0);
-  simpleCtl.setImagery(any ? await loadIndex() : null);
+  // Sentinel-2 は自動で入れるので、範囲があれば常に描く(入っていないタイルは描かれないだけ)
+  simpleCtl.setImagery(await loadIndex());
+}
+
+/**
+ * 衛星写真(Sentinel-2)を、電波のあるときに裏で全部入れる(初めては約 60 MB)。
+ * 起動の少しあと・電波が戻ったときに呼ぶ。全部入っていれば何もしない。
+ */
+let s2LastPaint = 0;
+async function startS2Sync() {
+  if (!navigator.onLine) return syncState;
+  const first = !syncedBefore() && !syncState.have;
+  const near = (lastFix && lastFix()) || (mapCtl && mapCtl.getView && mapCtl.getView()) || null;
+  let told = false;
+  const st = await syncAll({
+    near,
+    onProgress: (have, total) => {
+      if (first && !told && have < total) { told = true; toast(t('s2.start'), 7000); }
+      // 入ったタイルが地図に出るよう、時々描き直す
+      if (Date.now() - s2LastPaint > 3000) { s2LastPaint = Date.now(); resetMemory(); refreshImagery(); }
+      if ($('menuDialog').open) renderStatus();
+    }
+  });
+  resetMemory();
+  refreshImagery();
+  if (first && st.done) toast(t('s2.done'), 6000);
+  if ($('menuDialog').open) renderStatus();
+  return st;
 }
 
 /** いま地図の真ん中に見えている所を中心に、地図(と範囲内なら衛星写真)を取り込む。
@@ -1518,9 +1554,7 @@ function renderAreaList(ul, dlg) {
       await deleteArea(a.id);
       savedAreas = await listAreas();
       // ほかの保存地図に使っていない衛星写真も消す
-      const index = await loadIndex();
-      if (index) await pruneTiles(savedAreas.flatMap((x) => (x.sat ? satKeys(x, index) : [])));
-      resetMemory();
+      // 衛星写真は消さない(範囲全体を常に入れておくため)
       refreshBasemap();
     });
     ul.appendChild(li);
@@ -1700,6 +1734,8 @@ window.__fgm = {
   get photos() { return detailPhotos; },
   get savedAreas() { return savedAreas; },
   get userImagery() { return userImagery; },
+  get s2() { return { ...syncState }; },
+  syncS2: () => startS2Sync(),
   get map() { return mapCtl; },
   get version() { return VERSION; },
   stats: () => rec.stats(),

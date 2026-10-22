@@ -5,7 +5,7 @@
 Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_field_data_report.pdf)を踏まえ、
 「オフラインで動いて Google マップを使い、共有しやすいサービス」を作る。JatLog・field_visit_map の経験を流用してよい。
 
-## 今の状態(2026-10-22 v1.6.0 公開)
+## 今の状態(2026-10-22 v1.7.0 公開)
 
 - 公開URL: https://mameyompo-maker.github.io/field-gps-map/ (試用は末尾に `?demo`)
 - リポジトリ: https://github.com/mameyompo-maker/field-gps-map (public、Pages = main / docs)
@@ -45,6 +45,8 @@ Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_f
     → 方針:**Android アプリ(ArcGIS Maps SDK)を作る**。最初の一歩は Kazさんが ArcGIS Location Platform の
       開発者アカウントを作り、書き出し(export tiles)が無料枠で使えるか確かめること。そのあと小さな試作。
   - それまでの間は Web アプリで:v1.6.0 で手持ちの画像ファイル(GeoTIFF・KMZ)を取り込めるようにした。
+- v1.7.0(10/22、Kazさん「Sentinel-2 はデフォルトから入れておいてほしい」):電波のあるときに範囲全体(9,910 枚・約 60 MB)を
+  裏で自動取り込み(起動5秒後・電波が戻ったとき。続きから再開、済みは localStorage `fgm.s2.done`)。メニューに状態の行。地図削除で衛星写真を消さない。
 - v1.6.0(10/22、Kazさん「いったん Web アプリでできるだけ衛星画像を読み込めるように。ファイルを作って読み込ませるなど」):
   - 地図ボタン →「ファイルを取り込む(GeoTIFF・KMZ)」。`docs/lib/user-imagery.js`、geotiff.js を `docs/vendor/` に同梱。
     512px の小片+段(ピラミッド)にして IndexedDB `fgm-user-imagery` へ。簡易地図で Sentinel-2 の上に描く。詳細は README。

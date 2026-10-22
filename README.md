@@ -70,8 +70,11 @@ Malema の町を中心にした 10 km 四方で、約 1.2 万件(建物 11,906�
 Sentinel-2(無料・商用可、出典「Contains modified Copernicus Sentinel data 2026」)を使う。
 `tools/s2_tiles.py` が雲のない画像(2026年8〜10月)をつないでタイル(WebP、ズーム 8〜14)に切り、
 別リポジトリ [field-gps-imagery](https://github.com/mameyompo-maker/field-gps-imagery) の GitHub Pages で配る。
-アプリは地図を保存するときに、その範囲のタイル(「この辺り」はズーム 10〜14、「広い範囲」は 8〜12)を
-Cache Storage `fgm-s2-v1` に入れる(`docs/lib/imagery.js`)。地図を消すと、ほかで使っていないタイルも消す。
+**v1.7.0 から最初から入る(Kazさん「デフォルトから入れておいてほしい」)。** 電波のあるときに、起動の5秒後と電波が戻ったときに、
+範囲全体(Malema〜Ribáue 200 km 四方、9,910 枚・約 60 MB)を裏で Cache Storage `fgm-s2-v1` に入れる(`syncAll`、`docs/lib/imagery.js`)。
+粗いズーム(8〜12)を先に、細かいズーム(13・14)は今いる場所に近い順。途中で電波が切れたら次に続きから。
+全部入ると index.json の撮影日・枚数を `localStorage fgm.s2.done` に覚え、画像を作り直したときだけ取り直す。
+メニューの状態に「衛星写真:○枚 入っています/取り込み中」を出す。地図を消しても衛星写真は消さない。
 1画素 10 m なので、1 ha の畑は 10×10 画素ほど。道・川・畑のかたまりは見えるが、細かい境界は見えない。
 
 **Google などの衛星写真を保存しない理由。**

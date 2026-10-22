@@ -133,7 +133,7 @@ def main():
         check('help dialog shown first time', page.locator('#helpDialog[open]').count() == 1)
         page.wait_for_timeout(200)
         check('help starts at the top', page.evaluate("document.querySelector('#helpDialog').scrollTop") == 0)
-        check('version 1.6.0', page.evaluate('window.__fgm.version') == '1.6.0')
+        check('version 1.7.0', page.evaluate('window.__fgm.version') == '1.7.0')
         shot(page, '01_help')
         close_help(page)
         page.wait_for_function("() => document.querySelector('#gpsText').textContent.includes('±')", timeout=10000)
@@ -455,7 +455,7 @@ def main():
         page.wait_for_timeout(800)
         check('no raw keys in menu (en)', not raw_keys(), str(raw_keys()))
         check('menu has 6 items (admin in demo)', page.locator('#menuDialog .menu-items button:not([hidden])').count() == 6)
-        check('version line offers update check', 'v1.6.0' in page.inner_text('#menuUpdate'), page.inner_text('#menuUpdate'))
+        check('version line offers update check', 'v1.7.0' in page.inner_text('#menuUpdate'), page.inner_text('#menuUpdate'))
         shot(page, '10_menu_en')
         close_dialog(page, '#menuDialog')
 
@@ -542,6 +542,20 @@ def main():
         shot(page, '10g_list')
         close_dialog(page, '#layersDialog')
         page.keyboard.press('Escape')
+
+        # 衛星写真(Sentinel-2)の範囲全体を自動で入れる(本番は起動の5秒後と電波が戻ったとき)
+        n_present = sum(len(f) for _, _, f in os.walk(IMAGERY) if f) - 1   # index.json を除く
+        page.evaluate('window.__fgm.syncS2()')
+        page.wait_for_function('window.__fgm.s2.done', timeout=240000, polling=1000)
+        s2 = page.evaluate('window.__fgm.s2')
+        check('whole Sentinel-2 area synced', s2['have'] == s2['total'] and s2['total'] > 9000, str(s2))
+        check('all existing tiles are in Cache Storage', page.evaluate(S2_COUNT) == n_present, f"{page.evaluate(S2_COUNT)} / {n_present}")
+        check('sync remembered as done', page.evaluate("localStorage.getItem('fgm.s2.done')") is not None)
+        page.click('#btnMenu')
+        page.wait_for_selector('#menuDialog[open]')
+        page.wait_for_timeout(300)
+        check('menu shows satellite ready', 'ok' in (page.get_attribute('#stSat', 'class') or ''), page.inner_text('#stSat'))
+        close_dialog(page, '#menuDialog')
         ctx.unroute('**/api/interpreter')
         ctx.unroute('**/field-gps-imagery/s2/**')
 
@@ -600,6 +614,12 @@ def main():
         check('features kept offline', len(page.evaluate('window.__fgm.features')) == 8)
         check('offline maps kept offline', len(page.evaluate('window.__fgm.savedAreas')) == 2)
         check('imported images kept offline', len(page.evaluate('window.__fgm.userImagery')) == 3)
+        # 保存した地図の外(Ribáue の町、Malema から約 90 km)でも衛星写真が出る
+        page.evaluate("() => window.__fgm.map.centerOn({lat: -14.98, lng: 38.27}, 13)")
+        page.wait_for_timeout(2500)
+        bg = page.evaluate(CENTER_RGB)
+        check('Sentinel-2 drawn offline outside saved maps', sum(1 for p in bg if abs(p[0] - 244) + abs(p[1] - 241) + abs(p[2] - 232) > 30) >= 7, str(bg))
+        shot(page, '11c_offline_s2_ribaue')
         page.evaluate("(c) => window.__fgm.map.centerOn(c, 17)", page.evaluate('window.__fgm.userImagery')[0]['center'])
         page.wait_for_timeout(2000)
         check('imported image drawn offline', magenta(page.evaluate(CENTER_RGB)), str(page.evaluate(CENTER_RGB)))
@@ -644,7 +664,7 @@ def main():
             if left == 1:
                 check('tiles of the other map kept', page.evaluate(S2_COUNT) > 0, str(page.evaluate(S2_COUNT)))
         check('offline maps deleted', True)
-        check('satellite tiles removed with the maps', page.evaluate(S2_COUNT) == 0, str(page.evaluate(S2_COUNT)))
+        check('satellite kept after deleting the maps', page.evaluate(S2_COUNT) == n_present, str(page.evaluate(S2_COUNT)))
         check('records untouched by map delete', len(page.evaluate('window.__fgm.features')) == 9)
         for left in (2, 1, 0):
             page.click('#btnLayers')
