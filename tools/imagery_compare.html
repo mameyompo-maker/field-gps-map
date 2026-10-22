@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>衛星写真の比較</title>
+<!-- field_gps_map:衛星写真の画質比較(2026-10-22)。左右の地図は一緒に動く。
+     Esri = 高解像(保存には ArcGIS の契約が要る)/ Sentinel-2 = いまアプリに入っているもの(10 m)/
+     Mapbox = アクセストークンを入れたときだけ出る。地図を押すと、その場所の Esri 画像の撮影日・解像度を出す。 -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root { --bg:#f6f7f6; --fg:#1d2420; --muted:#5d6b63; --line:#d6ddd8; --accent:#1f8f5f; --card:#fff; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#151a17; --fg:#e8eee9; --muted:#9aa8a0; --line:#2e3833; --card:#1d2420; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 system-ui, "Segoe UI", "Hiragino Sans", sans-serif; }
+  header { padding:12px 16px 8px; }
+  h1 { font-size:18px; margin:0 0 4px; }
+  .note { color:var(--muted); font-size:13px; margin:0; }
+  .bar { display:flex; flex-wrap:wrap; gap:6px; padding:6px 16px 10px; align-items:center; }
+  .bar button, .bar input { font:inherit; font-size:13px; border:1px solid var(--line); background:var(--card); color:var(--fg); border-radius:999px; padding:6px 12px; }
+  .bar button { cursor:pointer; }
+  .bar button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .bar input { width:190px; }
+  .grid { display:grid; grid-template-columns:repeat(var(--n,2), 1fr); gap:6px; padding:0 6px; height:calc(100dvh - 200px); min-height:360px; }
+  @media (max-width: 760px) { .grid { grid-template-columns:1fr; height:auto; } .pane { height:46dvh; } }
+  .pane { position:relative; border-radius:12px; overflow:hidden; border:1px solid var(--line); }
+  .pane .map { position:absolute; inset:0; }
+  .label { position:absolute; z-index:500; left:52px; top:8px; background:rgba(0,0,0,.65); color:#fff; padding:4px 10px; border-radius:999px; font-size:13px; pointer-events:none; }
+  .label small { opacity:.8; }
+  #info { padding:8px 16px 16px; font-size:13px; color:var(--muted); }
+  #info b { color:var(--fg); }
+  .cross { position:absolute; z-index:450; left:50%; top:50%; width:18px; height:18px; margin:-9px 0 0 -9px; pointer-events:none; }
+  .cross::before, .cross::after { content:""; position:absolute; background:#ff3b30; }
+  .cross::before { left:8px; top:0; width:2px; height:18px; } .cross::after { top:8px; left:0; height:2px; width:18px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>衛星写真の比較(Malema〜Ribáue)</h1>
+  <p class="note">左右の地図は一緒に動きます。地図を押すと、その場所の Esri 画像の撮影日と解像度を下に出します。Sentinel-2 はいまのアプリに入っているもの(ズーム 14 より先は引き伸ばし)。Esri はこの辺りではズーム 17 まで(その先は引き伸ばし)。</p>
+</header>
+<div class="bar" id="places">
+  <button data-ll="-14.955,37.41,16">Malema</button>
+  <button data-ll="-14.98,38.27,16">Ribáue</button>
+  <button data-ll="-14.95,37.84,13">中間</button>
+  <input id="coord" placeholder="緯度, 経度 (例 -14.95, 37.41)">
+  <button id="go">移動</button>
+  <button id="z" data-z="18">ズーム 18(畑の境界)</button>
+  <input id="mbtoken" placeholder="Mapbox トークン(任意)">
+</div>
+<div class="grid" id="grid">
+  <div class="pane"><div class="map" id="mEsri"></div><div class="label">Esri World Imagery <small>(保存は ArcGIS の契約が必要)</small></div><div class="cross"></div></div>
+  <div class="pane"><div class="map" id="mS2"></div><div class="label">Sentinel-2 10 m <small>(いまのアプリ・無料)</small></div><div class="cross"></div></div>
+  <div class="pane" id="pMb" hidden><div class="map" id="mMb"></div><div class="label">Mapbox Satellite <small>(アプリ化すれば保存可)</small></div><div class="cross"></div></div>
+</div>
+<div id="info">地図を押すと、撮影日・解像度を表示します。</div>
+<script>
+const start = [-14.955, 37.41], z0 = 16;
+const opts = { zoomControl: true, attributionControl: true, maxZoom: 19 };
+const esri = L.map('mEsri', opts).setView(start, z0);
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+  maxNativeZoom: 17, maxZoom: 19, attribution: 'Esri, Vantor, Earthstar Geographics'
+}).addTo(esri);
+const s2 = L.map('mS2', opts).setView(start, z0);
+L.tileLayer('https://mameyompo-maker.github.io/field-gps-imagery/s2/{z}/{x}/{y}.webp', {
+  minZoom: 8, maxNativeZoom: 14, maxZoom: 19, attribution: 'Contains modified Copernicus Sentinel data 2026'
+}).addTo(s2);
+const maps = [esri, s2];
+let mb = null;
+
+// 一緒に動かす
+let syncing = false;
+function sync(src) {
+  if (syncing) return;
+  syncing = true;
+  maps.forEach((m) => { if (m !== src) m.setView(src.getCenter(), src.getZoom(), { animate: false }); });
+  syncing = false;
+}
+function hook(m) { m.on('move zoom', () => sync(m)); m.on('click', (e) => identify(e.latlng)); }
+maps.forEach(hook);
+
+function go(lat, lng, z) { esri.setView([lat, lng], z ?? esri.getZoom()); }
+document.querySelectorAll('#places [data-ll]').forEach((b) => b.addEventListener('click', () => {
+  const [a, c, z] = b.dataset.ll.split(',').map(Number); go(a, c, z);
+}));
+document.getElementById('go').addEventListener('click', () => {
+  const v = document.getElementById('coord').value.split(/[ ,]+/).map(Number).filter(Number.isFinite);
+  if (v.length >= 2) go(v[0], v[1], 17);
+});
+document.getElementById('z').addEventListener('click', () => esri.setZoom(18));
+
+// Mapbox(トークンを入れたときだけ)
+function addMapbox(tok) {
+  if (!tok || mb) return;
+  document.getElementById('pMb').hidden = false;
+  document.getElementById('grid').style.setProperty('--n', 3);
+  mb = L.map('mMb', opts).setView(esri.getCenter(), esri.getZoom());
+  L.tileLayer(`https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.jpg90?access_token=${encodeURIComponent(tok)}`, {
+    maxZoom: 19, tileSize: 512, zoomOffset: -1, attribution: '© Mapbox © Maxar'
+  }).addTo(mb);
+  maps.push(mb); hook(mb);
+  maps.forEach((m) => m.invalidateSize());
+}
+const tokIn = document.getElementById('mbtoken');
+try { const t = localStorage.getItem('cmp.mbtoken'); if (t) { tokIn.value = t; addMapbox(t); } } catch {}
+tokIn.addEventListener('change', () => { const t = tokIn.value.trim(); try { localStorage.setItem('cmp.mbtoken', t); } catch {} addMapbox(t); });
+
+// その場所の Esri 画像の撮影日・解像度
+async function identify(ll) {
+  const info = document.getElementById('info');
+  info.textContent = '調べています…';
+  const out = [];
+  for (const layer of [11, 12]) {
+    const u = `https://services.arcgisonline.com/arcgis/rest/services/World_Imagery/MapServer/${layer}/query?geometry=${ll.lng},${ll.lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=SRC_DATE2,SRC_RES,SRC_DESC,NICE_DESC&returnGeometry=false&f=json`;
+    try {
+      const d = await (await fetch(u)).json();
+      const a = d.features && d.features[0] && d.features[0].attributes;
+      if (a) { out.push(a); break; }
+    } catch {}
+  }
+  const p = `${ll.lat.toFixed(5)}, ${ll.lng.toFixed(5)}`;
+  if (!out.length) { info.textContent = `${p}:Esri の情報を取れませんでした。`; return; }
+  const a = out[0];
+  const date = a.SRC_DATE2 ? new Date(a.SRC_DATE2).toISOString().slice(0, 10) : '?';
+  info.innerHTML = `<b>${p}</b> — Esri:撮影日 <b>${date}</b>、1画素 <b>${a.SRC_RES} m</b>(${a.NICE_DESC || a.SRC_DESC || ''})。Sentinel-2 は 1画素 10 m、2026年8〜10月。`;
+}
+</script>
+</body>
+</html>

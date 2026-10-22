@@ -80,6 +80,25 @@ Cache Storage `fgm-s2-v1` に入れる(`docs/lib/imagery.js`)。地図を消す�
 - EOX Sentinel-2 cloudless:商用は有償ライセンス。
 - OpenStreetMap のデータは ODbL で、出典を示せば商用でも保存・利用できる。だからこれを使う。
 
+## 手持ちの空撮・衛星写真ファイルの取り込み(v1.6.0)
+
+Kazさん(10/22)「Web アプリでできるだけ衛星画像を読み込めるように。ファイルを作って読み込ませるなど」。
+地図ボタン →「ファイルを取り込む(GeoTIFF・KMZ)」。取り込んだ画像は端末の IndexedDB(`fgm-user-imagery`)に残り、
+圏外でも簡易地図に表示される(Sentinel-2 の上、道や記録の下)。
+
+- 対応する形式
+  - GeoTIFF:座標系は 緯度経度(EPSG:4326 など)・Web メルカトル(3857)・UTM(WGS84 の 326xx/327xx、Moznet UTM 36S/37S = 3036/3037)。
+    8 ビット RGB(透明の帯・nodata 可)、16 ビット(2〜98% で明るさを自動調整)。圧縮は deflate・LZW・JPEG など geotiff.js が読めるもの。
+  - KMZ/KML の GroundOverlay(画像は KMZ の中に入っていること。回転・LatLonQuad も可。複数の画像も可)
+- 大きな画像は長辺 10,240 px までに縮めて取り込む(例:5 cm の空撮 600 m 四方 → 約 6 cm)。
+  512 px の小片に切り、粗さの違う段を作って保存する。PC で 320 MB・12,000×10,000 px の GeoTIFF が約 40 秒、保存は約 24 MB。
+- 使ってよい画像:自分たちのドローンの空撮、購入した衛星写真、Sentinel-2 などの公開データ。
+  **Google・Esri の画像を保存したものは規約で使えない**(画面にも注意書きを出している)。
+- 座標系が分からない GeoTIFF は、QGIS で EPSG:4326 か UTM(WGS 84)にして書き出してもらう(エラー文で案内する)。
+- 試験用の画像は `python tests/make_imagery_fixtures.py` で作る(rasterio を使わず TIFF を自前で書く。この PC では
+  rasterio の DLL がアプリ制御で止められるようになった ― 10/22 確認。tools/s2_tiles.py もこのままでは動かない)。
+- geotiff.js 2.1.3(MIT)を `docs/vendor/geotiff.js` に置いた(取り込むときだけ読み込む。Service Worker で圏外でも使える)。
+
 ## 誰が使えるか
 
 - Google アカウントでログイン。**field_visit_map と同じ許可リスト**(Firestore の `allowedUsers/{メールアドレス小文字}`、`active: true`)を使う。
@@ -110,7 +129,7 @@ Cache Storage `fgm-s2-v1` に入れる(`docs/lib/imagery.js`)。地図を消す�
 - `tests/fixtures/overpass_malema.json`・`overpass_wide_malema.json` … Overpass の本物の答え(Malema の 10 km 四方と半径 100 km、試験用。小さく詰め直してある)
 - `tools/s2_tiles.py` … 衛星写真のタイルを作る(出力は `../field_gps_imagery/docs/s2/`)
 - `tests/` … `node tests/test_geo.mjs`(面積・距離)、`node tests/test_i18n.mjs`(翻訳の抜け)、
-  `python tests/e2e_demo.py --shots`(Edge で歩行・写真・3言語・圏外・圏外用の地図・衛星写真・管理者の集計を模擬した通し試験。132項目)、
+  `python tests/e2e_demo.py --shots`(Edge で歩行・写真・3言語・圏外・圏外用の地図・衛星写真・画像ファイルの取り込み・管理者の集計を模擬した通し試験。152項目)、
   `python tests/check_production.py --shots`(本番URLの確認)
 
 ## データの形(Firestore `gpsFeatures`)

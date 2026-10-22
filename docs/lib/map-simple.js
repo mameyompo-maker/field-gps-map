@@ -12,6 +12,7 @@
 import { catColor } from './categories.js';
 import { makeLocalProjection, pointInPolygon, distance, centroid } from './geo.js';
 import { getTile, ATTRIBUTION as SAT_CREDIT } from './imagery.js';
+import { paintUserImagery } from './user-imagery.js';
 
 export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMove, view } = {}) {
   const canvas = wrapper.querySelector('canvas');
@@ -25,6 +26,8 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
   let basemap = null;       // 保存した OpenStreetMap の地図(offline-map.js の mergeAreas の形)
   let imagery = null;       // 保存した衛星写真の範囲(imagery.js の index.json)。タイルは getTile で受け取る
   let sat = false;          // いま衛星写真を描いたか
+  let userLayers = [];      // 取り込んだ写真ファイル(user-imagery.js)
+  let userDrawn = [];
   let draft = null;
   let me = null;
   let highlighted = null;
@@ -67,7 +70,10 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     ctx.fillStyle = '#f4f1e8';
     ctx.fillRect(0, 0, W, H);
     const P = proj();
-    sat = paintImagery();
+    const s2 = paintImagery();
+    sat = s2;
+    userDrawn = userLayers.length ? paintUserImagery(ctx, userLayers, { center, mpp, W, H, dpr }, draw) : [];
+    if (userDrawn.length) sat = true;
 
     // 方眼(およそ 90px 間隔になる切りのよい距離)。衛星写真の上には引かない。
     const step = niceStep(mpp * 90);
@@ -170,7 +176,8 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     ctx.fillStyle = '#202124'; ctx.textAlign = 'center'; ctx.fillText('N', nx, ny + 20);
     const credits = [];
     if (basemap) credits.push('© OpenStreetMap contributors');
-    if (sat) credits.push(SAT_CREDIT);
+    if (s2) credits.push(SAT_CREDIT);
+    userDrawn.slice(0, 2).forEach((n) => credits.push(n));
     if (credits.length) {
       ctx.font = '500 10px system-ui, sans-serif'; ctx.textAlign = 'left';
       credits.forEach((c, i) => {
@@ -405,6 +412,7 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     setFeatures(list) { features = list; draw(); },
     setBasemap(m) { basemap = m; draw(); },
     setImagery(index) { imagery = index; draw(); },
+    setUserImagery(list) { userLayers = list || []; draw(); },
     setDraft(d) { draft = d ? { kind: d.kind, vertices: d.vertices.slice() } : null; draw(); },
     setMyLocation(fix) { me = fix; draw(); },
     fitPoints(points) {

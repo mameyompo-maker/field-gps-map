@@ -5,7 +5,7 @@
 Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_field_data_report.pdf)を踏まえ、
 「オフラインで動いて Google マップを使い、共有しやすいサービス」を作る。JatLog・field_visit_map の経験を流用してよい。
 
-## 今の状態(2026-10-22 v1.5.0 公開)
+## 今の状態(2026-10-22 v1.6.0 公開)
 
 - 公開URL: https://mameyompo-maker.github.io/field-gps-map/ (試用は末尾に `?demo`)
 - リポジトリ: https://github.com/mameyompo-maker/field-gps-map (public、Pages = main / docs)
@@ -38,6 +38,18 @@ Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_f
     簡易地図の一番下に描く(衛星写真の上では方眼・池の塗り・建物の塗りを省く)。
   - sw.js の掃除は `field-gps-map-` で始まるキャッシュだけ消すように変えた(衛星写真を消さないため)。
   - 範囲を広げるときは s2_tiles.py の CENTER/HALF_KM を変えて作り直し、imagery リポジトリへ push(アプリは変更不要)。
+- 衛星写真の方針(10/22、Kazさん決定):
+  - Esri World Imagery は Malema で 0.5 m(2024-09-19 WorldView-2)、Ribáue で 0.46 m(2022-10-21 GeoEye-1)。畑の境界まで見える。
+    比較ページ `tools/imagery_compare.html`(Esri と Sentinel-2 を並べる。Mapbox はトークンを入れると3つ目に出る)。
+  - Esri を圏外で使えるのは ArcGIS Maps SDK で作ったネイティブアプリだけ(Web アプリには保存できない)。
+    → 方針:**Android アプリ(ArcGIS Maps SDK)を作る**。最初の一歩は Kazさんが ArcGIS Location Platform の
+      開発者アカウントを作り、書き出し(export tiles)が無料枠で使えるか確かめること。そのあと小さな試作。
+  - それまでの間は Web アプリで:v1.6.0 で手持ちの画像ファイル(GeoTIFF・KMZ)を取り込めるようにした。
+- v1.6.0(10/22、Kazさん「いったん Web アプリでできるだけ衛星画像を読み込めるように。ファイルを作って読み込ませるなど」):
+  - 地図ボタン →「ファイルを取り込む(GeoTIFF・KMZ)」。`docs/lib/user-imagery.js`、geotiff.js を `docs/vendor/` に同梱。
+    512px の小片+段(ピラミッド)にして IndexedDB `fgm-user-imagery` へ。簡易地図で Sentinel-2 の上に描く。詳細は README。
+  - 試験用画像は `tests/make_imagery_fixtures.py`(この PC では rasterio がアプリ制御で動かなくなったため自前で TIFF を書く)。
+    **tools/s2_tiles.py も rasterio を使うので、今は動かない**(Sentinel-2 の範囲を広げるときは別の方法が要る)。
 - v1.5.0(10/22、Kazさん「今日の記録の合計や、まとめて書き出す管理者モードとデータが必要」):
   - メニュー「チームの集計(管理者)」:期間ごとの合計・人ごと・日ごと・記録一覧、期間の CSV/集計 CSV/KML。
     `docs/lib/admin-stats.js`。出すかどうかは `allowedUsers/{email}.admin === true`(auth.js が読んで端末に覚える)。試用モードでは常に出る。
@@ -59,6 +71,7 @@ Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_f
 
 ## 次にやること(Claude 側)
 
+- Esri アカウントの確認結果を受けて、Android 試作(ArcGIS Maps SDK for Kotlin)に入る。
 - 実機テストの結果を受けて直す。docs/ を変えたら sw.js の CACHE 版数と app.js の VERSION を上げて push(= 即本番)。
 
 ## 判明した制約・決定事項

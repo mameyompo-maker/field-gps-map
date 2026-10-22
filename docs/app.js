@@ -22,11 +22,12 @@ import { catColor, defaultCategory, categoriesFor } from './lib/categories.js';
 import { preparePhoto, dataUrlToFile, MAX_PHOTOS } from './lib/photos.js';
 import { downloadArea, listAreas, deleteArea, mergeAreas, satKeys, AREA_KM, WIDE_KM } from './lib/offline-map.js';
 import { loadIndex, pruneTiles, resetMemory } from './lib/imagery.js';
+import { importImagery, listImagery, deleteImagery } from './lib/user-imagery.js';
 // 書き出し・読み込みは使うときだけ読み込む(起動を軽くする)
 const loadExport = () => import('./lib/export.js');
 const loadAdmin = () => import('./lib/admin-stats.js');
 
-const VERSION = '1.5.0';
+const VERSION = '1.6.0';
 const $ = (id) => document.getElementById(id);
 const DEMO_KEY = 'fgm.demo';
 const VIEW_KEY = 'fgm.view';
@@ -54,6 +55,7 @@ let photoTarget = null;     // 'save' | 記録の id(詳細から追加)
 let saveCategory = 'field';
 let prevPending = 0;
 let savedAreas = [];        // 保存した圏外用の地図(この端末だけ)
+let userImagery = [];       // 取り込んだ衛星写真・空撮写真のファイル(この端末だけ)
 const filter = { q: '', group: '' };
 const rec = createRecorder();
 
@@ -141,6 +143,7 @@ async function startMain(u, mode) {
   startGps();
   onGps(onGpsUpdate);
   savedAreas = await listAreas();
+  userImagery = await listImagery();
   await initMap();
 
   store.subscribe((list, meta) => {
@@ -1350,6 +1353,7 @@ function openLayers() {
   ];
   d.innerHTML = `<h2></h2><nav class="menu-items lang-list"></nav>
     <section class="offmap"><h3></h3><p class="muted small"></p><button type="button" class="btn-primary btn-wide tappable offmap-save"><svg class="ic"><use href="#i-download"/></svg><span></span></button><button type="button" class="btn-secondary btn-wide tappable offmap-wide"><svg class="ic"><use href="#i-download"/></svg><span></span></button><ul class="offmap-list"></ul></section>
+    <section class="offmap offimg"><h3></h3><p class="muted small"></p><button type="button" class="btn-secondary btn-wide tappable offimg-add"><svg class="ic"><use href="#i-upload"/></svg><span></span></button><input type="file" class="offimg-file" accept=".tif,.tiff,.kmz,.kml,image/tiff,application/vnd.google-earth.kmz" hidden><ul class="offmap-list offimg-list"></ul></section>
     <div class="dlg-buttons"><button type="button" class="btn-ghost"></button></div>`;
   d.querySelector('h2').textContent = t('map.layers');
   d.querySelector('.offmap h3').textContent = t('off.map.title');
@@ -1359,6 +1363,16 @@ function openLayers() {
   d.querySelector('.offmap-save').addEventListener('click', () => { d.close(); saveOfflineArea(false); });
   d.querySelector('.offmap-wide').addEventListener('click', () => { d.close(); saveOfflineArea(true); });
   renderAreaList(d.querySelector('.offmap-list'), d);
+  d.querySelector('.offimg h3').textContent = t('off.img.title');
+  d.querySelector('.offimg p').textContent = t('off.img.note');
+  d.querySelector('.offimg-add span').textContent = t('off.img.add');
+  d.querySelector('.offimg-add').addEventListener('click', () => d.querySelector('.offimg-file').click());
+  d.querySelector('.offimg-file').addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    d.close();
+    if (file) addImageryFile(file);
+  });
+  renderImageryList(d.querySelector('.offimg-list'), d);
   d.querySelector('.dlg-buttons button').textContent = t('common.close');
   const nav = d.querySelector('nav');
   opts.forEach(([k, label]) => {
@@ -1395,6 +1409,7 @@ function refreshBasemap() {
 /** 衛星写真を保存した地図があるときだけ、簡易地図に衛星写真を描かせる。 */
 async function refreshImagery() {
   if (!simpleCtl) return;
+  simpleCtl.setUserImagery(userImagery);
   const any = savedAreas.some((a) => a.sat > 0);
   simpleCtl.setImagery(any ? await loadIndex() : null);
 }
@@ -1423,6 +1438,64 @@ async function saveOfflineArea(wide) {
     console.warn('offline map', err);
     toast(t('off.map.fail'), 7000);
   }
+}
+
+// ================================================================ 手持ちの写真ファイル(GeoTIFF・KMZ)
+
+/** 画像の範囲がちょうど画面に入るズーム。 */
+function zoomToFit(L) {
+  const cosl = Math.cos((L.center.lat * Math.PI) / 180);
+  const sizeM = Math.max((L.bbox[2] - L.bbox[0]) * 111320, (L.bbox[3] - L.bbox[1]) * 111320 * cosl, 50);
+  const px = Math.min(window.innerWidth, window.innerHeight);
+  return Math.max(8, Math.min(19, Math.floor(Math.log2((156543.03 * cosl * px) / (sizeM * 1.15)))));
+}
+
+function showImageryLayer(L) {
+  if (!mapCtl || mapCtl.type !== 'simple') useSimple();
+  mapCtl.centerOn(L.center, zoomToFit(L));
+}
+
+async function addImageryFile(file) {
+  toast(t('off.img.busy', { done: 0, total: '…' }), 600000);
+  try {
+    const L = await importImagery(file, (done, total) => updateToast(t('off.img.busy', { done, total }), 600000));
+    userImagery = await listImagery();
+    refreshImagery();
+    showImageryLayer(L);
+    toast(t('off.img.done', { name: L.name, res: fmtRes(L.res) }), 7000);
+  } catch (err) {
+    console.warn('imagery import', err);
+    const code = err && err.code;
+    toast(code ? t('off.img.err.' + code) : t('off.img.fail', { msg: (err && err.message) || '' }), 10000);
+  }
+}
+
+function fmtRes(m) {
+  return m < 1 ? `${Math.round(m * 100)} cm` : `${m.toFixed(m < 10 ? 1 : 0)} m`;
+}
+
+function renderImageryList(ul, dlg) {
+  ul.innerHTML = '';
+  userImagery.slice().sort((a, b) => b.addedAt - a.addedAt).forEach((L) => {
+    const li = document.createElement('li');
+    li.innerHTML = '<button type="button" class="offmap-go tappable"><strong></strong><span class="muted small"></span></button><button type="button" class="icon-btn tappable offmap-del"><svg class="ic"><use href="#i-close"/></svg></button>';
+    li.querySelector('strong').textContent = L.name;
+    li.querySelector('span').textContent = t('off.img.item', {
+      date: new Date(L.addedAt).toLocaleDateString(locale()), res: fmtRes(L.res),
+      mb: (L.bytes / 1048576).toLocaleString(locale(), { maximumFractionDigits: 1 })
+    });
+    li.querySelector('.offmap-del').setAttribute('aria-label', t('off.map.remove'));
+    li.querySelector('.offmap-go').addEventListener('click', () => { dlg.close(); showImageryLayer(L); });
+    li.querySelector('.offmap-del').addEventListener('click', async () => {
+      dlg.close();
+      const ok = await confirmDlg(t('off.img.removeConfirm', { name: L.name }), t('off.map.remove'), t('common.cancel'));
+      if (!ok) return;
+      await deleteImagery(L.id);
+      userImagery = await listImagery();
+      refreshImagery();
+    });
+    ul.appendChild(li);
+  });
 }
 
 function renderAreaList(ul, dlg) {
@@ -1626,6 +1699,7 @@ window.__fgm = {
   get mapType() { return mapCtl && mapCtl.type; },
   get photos() { return detailPhotos; },
   get savedAreas() { return savedAreas; },
+  get userImagery() { return userImagery; },
   get map() { return mapCtl; },
   get version() { return VERSION; },
   stats: () => rec.stats(),

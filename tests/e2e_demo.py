@@ -31,6 +31,20 @@ PHOTO2 = os.path.join(ROOT, 'tests', 'fixtures', 'field_photo2.jpg')
 # Overpass の本物の答え(2026-10-22 取得、Malema の町を中心に 10 km 四方)。試験では本物の窓口に問い合わせない。
 OVERPASS = os.path.join(ROOT, 'tests', 'fixtures', 'overpass_malema.json')
 MALEMA = {'lat': -14.955, 'lng': 37.41}
+# 取り込み試験用の画像(tests/make_imagery_fixtures.py で作る)。どれも真ん中がマゼンタ
+FIX = os.path.join(ROOT, 'tests', 'fixtures')
+IMG_UTM = os.path.join(FIX, 'img_utm37s_rgba.tif')
+IMG_16 = os.path.join(FIX, 'img_4326_16bit.tif')
+IMG_KMZ = os.path.join(FIX, 'img_overlay.kmz')
+IMG_BAD = os.path.join(FIX, 'img_bad_crs.tif')
+# 簡易地図の画面の真ん中から少しずらした点の色(真ん中は印などが重なることがあるので)
+CENTER_RGB = """() => { const c = document.querySelector('#mapSimple canvas'); const g = c.getContext('2d'); const out = []; for (const dy of [-30, 0, 30]) for (const dx of [-30, 0, 30]) { const d = g.getImageData(Math.floor(c.width / 2) + dx, Math.floor(c.height / 2) + dy, 1, 1).data; out.push([d[0], d[1], d[2]]); } return out; }"""
+IMG_CHUNKS = """() => new Promise((res) => { const r = indexedDB.open('fgm-user-imagery'); r.onsuccess = () => { const q = r.result.transaction('chunks').objectStore('chunks').count(); q.onsuccess = () => res(q.result); }; })"""
+
+
+def magenta(pts):
+    # 9点のうち5点以上がマゼンタ(道などの線が重なっても落ちないように)
+    return sum(1 for p in pts if p[0] > 190 and p[1] < 90 and p[2] > 190) >= 5
 # 広い範囲(半径 100 km、道・川・集落名だけ)の本物の答え(2026-10-22 取得、小さく詰め直したもの)
 OVERPASS_WIDE = os.path.join(ROOT, 'tests', 'fixtures', 'overpass_wide_malema.json')
 # 衛星写真のタイル(tools/s2_tiles.py で作ったもの。本番は別リポジトリ field-gps-imagery)
@@ -119,7 +133,7 @@ def main():
         check('help dialog shown first time', page.locator('#helpDialog[open]').count() == 1)
         page.wait_for_timeout(200)
         check('help starts at the top', page.evaluate("document.querySelector('#helpDialog').scrollTop") == 0)
-        check('version 1.5.0', page.evaluate('window.__fgm.version') == '1.5.0')
+        check('version 1.6.0', page.evaluate('window.__fgm.version') == '1.6.0')
         shot(page, '01_help')
         close_help(page)
         page.wait_for_function("() => document.querySelector('#gpsText').textContent.includes('±')", timeout=10000)
@@ -441,7 +455,7 @@ def main():
         page.wait_for_timeout(800)
         check('no raw keys in menu (en)', not raw_keys(), str(raw_keys()))
         check('menu has 6 items (admin in demo)', page.locator('#menuDialog .menu-items button:not([hidden])').count() == 6)
-        check('version line offers update check', 'v1.5.0' in page.inner_text('#menuUpdate'), page.inner_text('#menuUpdate'))
+        check('version line offers update check', 'v1.6.0' in page.inner_text('#menuUpdate'), page.inner_text('#menuUpdate'))
         shot(page, '10_menu_en')
         close_dialog(page, '#menuDialog')
 
@@ -531,6 +545,49 @@ def main():
         ctx.unroute('**/api/interpreter')
         ctx.unroute('**/field-gps-imagery/s2/**')
 
+        # ---------------------------------------------------- 手持ちの画像ファイルを取り込む
+        print('[10c] 画像ファイルの取り込み')
+        page.click('#btnLayers')
+        page.wait_for_selector('.offimg-add')
+        check('layers dialog offers image import', page.is_visible('.offimg-add'), page.inner_text('.offimg-add'))
+        shot(page, '10h_layers_with_import')
+        for n, (path, label, res) in enumerate([(IMG_UTM, 'UTM 37S RGBA', 0.3), (IMG_16, '4326 16bit', 0.5), (IMG_KMZ, 'KMZ rotated', None)], 1):
+            if n > 1:
+                page.click('#btnLayers')
+                page.wait_for_selector('.offimg-add')
+            page.set_input_files('.offimg-file', path)
+            page.wait_for_function(f'window.__fgm.userImagery.length === {n}', timeout=60000)
+            L = [x for x in page.evaluate('window.__fgm.userImagery') if x['file'] == os.path.basename(path)][0]
+            page.wait_for_timeout(1800)
+            check(f'{label}: switched to simple map', page.evaluate('window.__fgm.mapType') == 'simple')
+            near = abs(L['center']['lat'] - MALEMA['lat']) < 0.01 and abs(L['center']['lng'] - MALEMA['lng']) < 0.03
+            check(f'{label}: placed near Malema', near, str(L['center']))
+            if res:
+                check(f'{label}: resolution {res} m', abs(L['res'] - res) < 0.05, str(L['res']))
+            rgb = page.evaluate(CENTER_RGB)
+            check(f'{label}: image drawn (magenta in the middle)', magenta(rgb), str(rgb))
+            shot(page, f'10i_import_{n}')
+        L = page.evaluate('window.__fgm.userImagery')[0]
+        check('UTM image has several levels', max(p['k'] for p in L['sets'][0]['pieces']) >= 3, str(max(p['k'] for p in L['sets'][0]['pieces'])))
+        # 拡大しても(細かい段)マゼンタのまま、縁は透明(下の地図が見える)
+        page.evaluate("(c) => window.__fgm.map.centerOn(c, 19)", L['center'])
+        page.wait_for_timeout(1500)
+        check('fine level drawn at zoom 19', magenta(page.evaluate(CENTER_RGB)), str(page.evaluate(CENTER_RGB)))
+        shot(page, '10j_zoom19')
+        page.click('#btnLayers')
+        page.wait_for_selector('.offimg-add')
+        page.set_input_files('.offimg-file', IMG_BAD)
+        page.wait_for_timeout(1500)
+        msg = page.evaluate("() => document.getElementById('toast').textContent")
+        check('unknown CRS refused with advice', 'QGIS' in msg and len(page.evaluate('window.__fgm.userImagery')) == 3, msg)
+        page.click('#btnLayers')
+        page.wait_for_selector('.offimg-list li')
+        check('image list shows 3', page.locator('.offimg-list li').count() == 3, page.inner_text('.offimg-list'))
+        shot(page, '10k_image_list')
+        page.locator('.offimg-list .offmap-go').last.click()
+        page.wait_for_timeout(1200)
+        check('tap list item goes to image', magenta(page.evaluate(CENTER_RGB)), str(page.evaluate(CENTER_RGB)))
+
         # ---------------------------------------------------- 圏外で開き直す(Service Worker)
         print('[11] 圏外')
         page.wait_for_timeout(1500)   # SW のインストール待ち
@@ -542,6 +599,11 @@ def main():
         check('app opens offline', page.is_visible('#fabNew'))
         check('features kept offline', len(page.evaluate('window.__fgm.features')) == 8)
         check('offline maps kept offline', len(page.evaluate('window.__fgm.savedAreas')) == 2)
+        check('imported images kept offline', len(page.evaluate('window.__fgm.userImagery')) == 3)
+        page.evaluate("(c) => window.__fgm.map.centerOn(c, 17)", page.evaluate('window.__fgm.userImagery')[0]['center'])
+        page.wait_for_timeout(2000)
+        check('imported image drawn offline', magenta(page.evaluate(CENTER_RGB)), str(page.evaluate(CENTER_RGB)))
+        shot(page, '11b_offline_image')
         page.evaluate("(c) => window.__fgm.map.centerOn(c, 16)", MALEMA)
         page.wait_for_timeout(1500)
         shot(page, '11a_offline_osm')
@@ -584,6 +646,15 @@ def main():
         check('offline maps deleted', True)
         check('satellite tiles removed with the maps', page.evaluate(S2_COUNT) == 0, str(page.evaluate(S2_COUNT)))
         check('records untouched by map delete', len(page.evaluate('window.__fgm.features')) == 9)
+        for left in (2, 1, 0):
+            page.click('#btnLayers')
+            page.wait_for_selector('.offimg-list .offmap-del')
+            page.locator('.offimg-list .offmap-del').first.click()
+            page.wait_for_selector('#confirmDialog[open]')
+            page.click('#confirmYes')
+            page.wait_for_function(f'window.__fgm.userImagery.length === {left}', timeout=10000)
+        page.wait_for_timeout(300)
+        check('image pieces removed with the images', page.evaluate(IMG_CHUNKS) == 0, str(page.evaluate(IMG_CHUNKS)))
 
         real_errors = [e for e in errors if 'maps.googleapis' not in e and 'ERR_INTERNET_DISCONNECTED' not in e and 'Failed to load resource' not in e]
         check('no JS errors', not real_errors, '\n'.join(real_errors[:5]))
@@ -600,7 +671,10 @@ def main():
                     json.dumps(page.evaluate("JSON.parse(localStorage.getItem('fgm.demo.features'))")))
         pg.goto(URL + '?demo')
         pg.wait_for_selector('#mainScreen:not([hidden])', timeout=15000)
-        pg.wait_for_timeout(4000)
+        try:
+            pg.wait_for_function("['google', 'simple'].includes(window.__fgm.mapType)", timeout=15000)
+        except Exception:
+            pass
         # localhost では Maps キーの制限で Google が地図を拒否することがある。その場合は
         # エラー画面のまま残らず簡易地図に切り替わっていればよい(本番URLでの確認は tests/check_production.py)。
         mt = pg.evaluate('window.__fgm.mapType')
