@@ -5,7 +5,7 @@
 Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_field_data_report.pdf)を踏まえ、
 「オフラインで動いて Google マップを使い、共有しやすいサービス」を作る。JatLog・field_visit_map の経験を流用してよい。
 
-## 今の状態(2026-10-22 v1.3.0 公開)
+## 今の状態(2026-10-22 v1.4.0 公開)
 
 - 公開URL: https://mameyompo-maker.github.io/field-gps-map/ (試用は末尾に `?demo`)
 - リポジトリ: https://github.com/mameyompo-maker/field-gps-map (public、Pages = main / docs)
@@ -30,6 +30,14 @@ Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_f
   - 新しいファイル `docs/lib/offline-map.js`。描画は `docs/lib/map-simple.js` の paintBasemap。メニューに保存数を表示。
   - 衛星写真は保存しない(Google は規約で禁止、Esri は ArcGIS の有料契約、EOX は商用有償)。理由は README に。
   - 試験用に Overpass の本物の答え(Malema)を `tests/fixtures/overpass_malema.json` に置いた。通し試験 106/106。
+- v1.4.0(10/22、Kazさん「半径 100 km にできないか」「衛星写真をどうにか使いたい」→ 2段構え+Sentinel-2 で決定):
+  - 地図ボタンに2つ:「この辺りを保存」(10 km 四方・建物まで)と「広い範囲を保存」(200 km 四方・道/川/池/集落名)。
+    200 km 四方の建物は約 33 万件で重すぎるため入れない(実測)。
+  - 衛星写真:Sentinel-2(1画素 10 m、無料・商用可、出典表示)。`tools/s2_tiles.py` で Malema〜Ribáue を中心に
+    200 km 四方を作り、別リポジトリ field-gps-imagery(Pages)で配る。保存時に Cache Storage `fgm-s2-v1` へ。
+    簡易地図の一番下に描く(衛星写真の上では方眼・池の塗り・建物の塗りを省く)。
+  - sw.js の掃除は `field-gps-map-` で始まるキャッシュだけ消すように変えた(衛星写真を消さないため)。
+  - 範囲を広げるときは s2_tiles.py の CENTER/HALF_KM を変えて作り直し、imagery リポジトリへ push(アプリは変更不要)。
 - Firestore ルール:`gpsFeatures/{id}/photos` を追加してデプロイ済み。field_visit_map/firestore.rules にも同じ内容を入れて push 済み。
 - 試験:通し試験 94/94(`tests/e2e_demo.py`)、翻訳 205 キー×3言語の抜け・余りなし、ルールの試験 25/25。
 - 途中で見つけて直したバグ:角のボタンで「直近 2.5 秒で精度が同じ測位」が並ぶと最も古い測位を使い、
@@ -37,8 +45,8 @@ Kazさんの依頼(10/21):2つのレポート(offline_gps_report.pdf / company_f
 
 ## Kazさんにお願いすること(台帳 #11)
 
-0. 現場に行く前に、電波のある所で作業場所ごとに「この辺りの地図を保存」(Malema 2 の圃場・コミュニティ苗畑など)。
-   圏外で道・川・家が見えるか、実機で確かめる。
+0. 現場に行く前に、電波のある所で「広い範囲を保存」を1回、作業場所ごとに「この辺りを保存」(Malema 2 の圃場・コミュニティ苗畑など)。
+   圏外で道・川・家・衛星写真が見えるか、実機で確かめる(衛星写真は 10 m と粗い点も見てもらう)。
 1. 実機(Android)で:Google でログイン → 「新しく記録」→「区画」→ 角を歩いてボタンで記録 → 写真を付ける → 機内モードで記録 →
    電波を戻してアプリを開き、メニューで「すべて送信済み」になるか。
 2. 使う人のメールアドレスが allowedUsers に入っているか(field_visit_map と共通)。

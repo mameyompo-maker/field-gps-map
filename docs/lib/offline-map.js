@@ -12,7 +12,14 @@
  * 取り込み:Overpass API(OpenStreetMap の検索窓口)に「この四角の中の道・川・池・建物・地名」を1回尋ねる。
  * 保存:IndexedDB(この端末だけ。会社の Firebase には送らない)。地図は描画用に軽い形へ詰め直して持つ。
  * 描画:map-simple.js が簡易地図の上に描く。
+ *
+ * 2段構え(Kazさん 10/22「半径 100 km にできないか」):
+ *   - この辺り:一辺 10 km、建物まで。Malema の町で約 1.2 万件・答え 7.6 MB。
+ *   - 広い範囲:一辺 200 km(半径 100 km)、道・川・池・集落名だけ。建物は 200 km 四方で約 33 万件あり、
+ *     窓口にも端末にも重すぎるので入れない。道 6,093・川 516 で答え約 15 MB(10/22 実測)。
+ *   どちらも、範囲に衛星写真(imagery.js)があれば一緒に保存する。
  */
+import { loadIndex, tilesFor, saveTiles } from './imagery.js';
 const DB_NAME = 'fgm-offline-map';
 const STORE = 'areas';
 const ENDPOINTS = [
@@ -20,7 +27,9 @@ const ENDPOINTS = [
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass-api.de/api/interpreter'      // 本家は一時的に 502 を返すことがあるので、もう一度
 ];
-export const AREA_KM = 10;   // 保存する四角の一辺(km)
+export const AREA_KM = 10;   // 「この辺り」の四角の一辺(km)
+export const WIDE_KM = 200;  // 「広い範囲」の四角の一辺(km)= 半径 100 km
+const SAT_ZOOM = { near: [10, 14], wide: [8, 12] };   // 一緒に保存する衛星写真のズーム
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -47,8 +56,16 @@ export function bboxAround(c, km = AREA_KM) {
   return [c.lat - dLat, c.lng - dLng, c.lat + dLat, c.lng + dLng];
 }
 
-function query(b) {
+function query(b, wide) {
   const bb = b.map((x) => x.toFixed(5)).join(',');
+  if (wide) {
+    return `[out:json][timeout:180];(
+way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|road|track)$"](${bb});
+way["waterway"~"^(river|stream|canal)$"](${bb});
+way["natural"="water"](${bb});
+node["place"~"^(city|town|village|hamlet|suburb|locality)$"](${bb});
+);out geom qt;`;
+  }
   return `[out:json][timeout:120];(
 way["highway"~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|road|track|path|footway|bridleway)$"](${bb});
 way["waterway"~"^(river|stream|canal|drain|ditch)$"](${bb});
@@ -110,16 +127,24 @@ function areaName(d, c) {
   return best ? best.n : `${c.lat.toFixed(3)}, ${c.lng.toFixed(3)}`;
 }
 
-/** この辺り(中心から一辺 AREA_KM)の地図を取り込んで保存する。 */
-export async function downloadArea(center) {
-  const bbox = bboxAround(center);
-  const body = 'data=' + encodeURIComponent(query(bbox));
+/** 保存した地図に使う衛星写真のタイル(z/x/y)。 */
+export function satKeys(area, index) {
+  const [z0, z1] = SAT_ZOOM[area.kind === 'wide' ? 'wide' : 'near'];
+  return tilesFor(area.bbox, z0, z1, index);
+}
+
+/** 地図を取り込んで保存する。wide なら一辺 WIDE_KM(建物なし)、そうでなければ一辺 AREA_KM。
+ *  onProgress(段階, 済み, 全部):段階は 'osm' と 'sat'。 */
+export async function downloadArea(center, { wide = false, onProgress } = {}) {
+  const bbox = bboxAround(center, wide ? WIDE_KM : AREA_KM);
+  const body = 'data=' + encodeURIComponent(query(bbox, wide));
+  if (onProgress) onProgress('osm', 0, 1);
   let json = null;
   let lastErr = null;
   for (const url of ENDPOINTS) {
     // 混んでいると返事が来ないことがある(2026-10-22 の試しで予備の窓口が3分無応答)。90秒で次へ。
     const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 90000);
+    const timer = setTimeout(() => ctl.abort(), wide ? 200000 : 90000);
     try {
       const res = await fetch(url, { method: 'POST', body, signal: ctl.signal, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -132,13 +157,24 @@ export async function downloadArea(center) {
   const data = compact(json);
   const area = {
     id: 'a' + Date.now().toString(36),
+    kind: wide ? 'wide' : 'near',
     name: areaName(data, center),
     center: { lat: center.lat, lng: center.lng },
     bbox,
     savedAt: Date.now(),
     n: count(data),
+    sat: 0,
     data
   };
+  // 衛星写真(範囲の中なら)。失敗しても道・川の地図は保存する。
+  try {
+    const index = await loadIndex();
+    const keys = satKeys(area, index);
+    if (keys.length) {
+      if (onProgress) onProgress('sat', 0, keys.length);
+      area.sat = await saveTiles(keys, (d, t) => onProgress && onProgress('sat', d, t));
+    }
+  } catch (err) { console.warn('imagery', err); }
   await tx('readwrite', (st) => st.put(area));
   return area;
 }

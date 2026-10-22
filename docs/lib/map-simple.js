@@ -11,6 +11,7 @@
  */
 import { catColor } from './categories.js';
 import { makeLocalProjection, pointInPolygon, distance, centroid } from './geo.js';
+import { getTile, ATTRIBUTION as SAT_CREDIT } from './imagery.js';
 
 export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMove, view } = {}) {
   const canvas = wrapper.querySelector('canvas');
@@ -22,6 +23,8 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
   let mpp = view && view.zoom ? 156543.03 * Math.cos((center.lat * Math.PI) / 180) / 2 ** view.zoom : 2;
   let features = [];
   let basemap = null;       // 保存した OpenStreetMap の地図(offline-map.js の mergeAreas の形)
+  let imagery = null;       // 保存した衛星写真の範囲(imagery.js の index.json)。タイルは getTile で受け取る
+  let sat = false;          // いま衛星写真を描いたか
   let draft = null;
   let me = null;
   let highlighted = null;
@@ -64,10 +67,11 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     ctx.fillStyle = '#f4f1e8';
     ctx.fillRect(0, 0, W, H);
     const P = proj();
+    sat = paintImagery();
 
-    // 方眼(およそ 90px 間隔になる切りのよい距離)
+    // 方眼(およそ 90px 間隔になる切りのよい距離)。衛星写真の上には引かない。
     const step = niceStep(mpp * 90);
-    ctx.strokeStyle = 'rgba(0,0,0,.08)';
+    ctx.strokeStyle = sat ? 'rgba(0,0,0,0)' : 'rgba(0,0,0,.08)';
     ctx.lineWidth = 1;
     const x0 = Math.floor((-W / 2) * mpp / step) * step;
     const y0 = Math.floor((-H / 2) * mpp / step) * step;
@@ -164,11 +168,58 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     ctx.beginPath(); ctx.moveTo(nx, ny - 14); ctx.lineTo(nx + 8, ny + 6); ctx.lineTo(nx, ny + 2); ctx.lineTo(nx - 8, ny + 6); ctx.closePath();
     ctx.fillStyle = '#d93025'; ctx.fill();
     ctx.fillStyle = '#202124'; ctx.textAlign = 'center'; ctx.fillText('N', nx, ny + 20);
-    if (basemap) {
+    const credits = [];
+    if (basemap) credits.push('© OpenStreetMap contributors');
+    if (sat) credits.push(SAT_CREDIT);
+    if (credits.length) {
       ctx.font = '500 10px system-ui, sans-serif'; ctx.textAlign = 'left';
-      ctx.fillStyle = 'rgba(32,33,36,.75)';
-      ctx.fillText('© OpenStreetMap contributors', bx, by + 22);
+      credits.forEach((c, i) => {
+        const y = by + 22 + i * 13;
+        if (sat) { ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.strokeText(c, bx, y); }
+        ctx.fillStyle = 'rgba(32,33,36,.85)'; ctx.fillText(c, bx, y);
+      });
     }
+  }
+
+  // ---------------------------------------------------------------- 保存した衛星写真(Sentinel-2)
+  // 画面の縮尺に近いズームのタイルを描く。まだ無いタイルは、1つ上(粗い)のタイルを拡大して埋める。
+  function paintImagery() {
+    if (!imagery) return false;
+    const lat0 = center.lat, lng0 = center.lng;
+    const cosl = Math.cos((lat0 * Math.PI) / 180);
+    const half = (Math.max(W, H) / 2 + 20) * mpp;
+    const dLat = half / 111320, dLng = half / (111320 * cosl);
+    const [iw, is, ie, inn] = imagery.bbox;
+    const S = Math.max(lat0 - dLat, is), N = Math.min(lat0 + dLat, inn);
+    const Wl = Math.max(lng0 - dLng, iw), E = Math.min(lng0 + dLng, ie);
+    if (S >= N || Wl >= E) return false;
+    const z = Math.max(imagery.minzoom, Math.min(imagery.maxzoom, Math.round(zoomLevel() + 0.3)));
+    const n = 2 ** z;
+    const tx = (lng) => ((lng + 180) / 360) * n;
+    const ty = (lat) => { const r = (lat * Math.PI) / 180; return ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n; };
+    const x0 = Math.floor(tx(Wl)), x1 = Math.floor(tx(E)), y0 = Math.floor(ty(N)), y1 = Math.floor(ty(S));
+    if ((x1 - x0 + 1) * (y1 - y0 + 1) > 300) return false;
+    const R = 6378137;
+    const ky = (Math.PI / 180) * R / mpp, kx = ky * cosl;
+    const lngOf = (x, zz) => (x / 2 ** zz) * 360 - 180;
+    const latOf = (y, zz) => (180 / Math.PI) * Math.atan(Math.sinh(Math.PI - (2 * Math.PI * y) / 2 ** zz));
+    let drew = false;
+    for (let x = x0; x <= x1; x++) {
+      for (let y = y0; y <= y1; y++) {
+        const L = Math.floor(W / 2 + (lngOf(x, z) - lng0) * kx), Rr = Math.ceil(W / 2 + (lngOf(x + 1, z) - lng0) * kx);
+        const T = Math.floor(H / 2 - (latOf(y, z) - lat0) * ky), B = Math.ceil(H / 2 - (latOf(y + 1, z) - lat0) * ky);
+        for (let d = 0; z - d >= imagery.minzoom; d++) {
+          const pz = z - d, px = x >> d, py = y >> d;
+          const bmp = getTile(`${pz}/${px}/${py}`, draw);
+          if (!bmp) continue;
+          const size = 256 / 2 ** d;
+          ctx.drawImage(bmp, (x - (px << d)) * size, (y - (py << d)) * size, size, size, L, T, Rr - L, B - T);
+          drew = true;
+          break;
+        }
+      }
+    }
+    return drew;
   }
 
   // ---------------------------------------------------------------- 保存した OpenStreetMap の地図
@@ -193,7 +244,7 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     // 池・湖
     ctx.beginPath();
     basemap.water.forEach((it) => { if (inView(it.b)) path(it.c, true); });
-    ctx.fillStyle = '#b5d3f0'; ctx.fill();
+    if (!sat) { ctx.fillStyle = '#b5d3f0'; ctx.fill(); }
 
     // 川(大きい川は太く)
     [[1, 4], [2, 1.6]].forEach(([k, w]) => {
@@ -206,8 +257,13 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     if (mpp < 6) {
       ctx.beginPath();
       basemap.buildings.forEach((it) => { if (inView(it.b)) path(it.c, true); });
-      ctx.fillStyle = '#d9cbb7'; ctx.fill();
-      if (mpp < 1.5) { ctx.lineWidth = 1; ctx.strokeStyle = '#bba98f'; ctx.stroke(); }
+      if (sat) {
+        // 衛星写真の上では塗らずに縁だけ(屋根が見えるように)
+        if (mpp < 3) { ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,240,200,.8)'; ctx.stroke(); }
+      } else {
+        ctx.fillStyle = '#d9cbb7'; ctx.fill();
+        if (mpp < 1.5) { ctx.lineWidth = 1; ctx.strokeStyle = '#bba98f'; ctx.stroke(); }
+      }
     }
 
     // 道(太い道ほど後に描いて上に重ねる)。小道は寄ったときだけ。
@@ -348,6 +404,7 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     type: 'simple',
     setFeatures(list) { features = list; draw(); },
     setBasemap(m) { basemap = m; draw(); },
+    setImagery(index) { imagery = index; draw(); },
     setDraft(d) { draft = d ? { kind: d.kind, vertices: d.vertices.slice() } : null; draw(); },
     setMyLocation(fix) { me = fix; draw(); },
     fitPoints(points) {

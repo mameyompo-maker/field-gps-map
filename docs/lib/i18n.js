@@ -45,9 +45,9 @@ const DICT = {
     'off.lastSync': 'Última ligação ao servidor: {time}', 'off.never': 'Ainda sem ligação ao servidor',
 
     'off.map.title': 'Mapa para usar sem rede',
-    'off.map.note': 'Guarda no telemóvel as estradas, rios, casas e nomes das povoações (OpenStreetMap) de um quadrado de {km} km à volta do centro do mapa. Sem rede, aparecem no mapa simples. A imagem de satélite não pode ser guardada (o Google não permite).',
-    'off.map.save': 'Guardar o mapa desta zona ({km} km)',
-    'off.map.busy': 'A descarregar o mapa… (pode levar até 1 minuto)',
+    'off.map.note': 'Guarda no telemóvel o mapa à volta do centro do mapa (OpenStreetMap). «Esta zona»: quadrado de {km} km com casas. «Zona larga»: raio de {r} km, só estradas, rios e povoações. Na zona de Malema a Ribáue guarda também a imagem de satélite Sentinel-2 (cada ponto = 10 m; vê-se estradas e machambas, não os detalhes). Sem rede, aparece no mapa simples. A imagem do Google não pode ser guardada.',
+    'off.map.save': 'Guardar esta zona ({km} km, com casas)',
+    'off.map.busy': 'A descarregar o mapa… (pode levar 1 a 3 minutos)',
     'off.map.done': 'Mapa guardado: {name} ({n} elementos). Já pode usar sem rede.',
     'off.map.fail': 'Não foi possível descarregar o mapa. Tente de novo daqui a pouco.',
     'off.map.offline': 'Sem rede. Guarde o mapa num lugar com rede (antes de ir ao campo).',
@@ -55,7 +55,13 @@ const DICT = {
     'off.map.remove': 'Apagar mapa',
     'off.map.removeConfirm': 'Apagar o mapa guardado de “{name}”? (os registos não são apagados)',
     'off.map.count': 'Mapas guardados para usar sem rede: {n}',
-    'off.map.none': 'Ainda sem mapa guardado — botão do mapa → Guardar o mapa desta zona',
+    'off.map.none': 'Ainda sem mapa guardado — botão do mapa → Guardar esta zona',
+    'off.map.saveWide': 'Guardar zona larga (raio {r} km)',
+    'off.map.busySat': 'A descarregar a imagem de satélite… {done}/{total}',
+    'off.map.doneSat': 'Mapa guardado: {name} ({n} elementos, {sat} imagens de satélite). Já pode usar sem rede.',
+    'off.map.kindNear': '{km} km',
+    'off.map.kindWide': 'raio {r} km',
+    'off.map.withSat': 'com satélite',
     'upd.checking': 'A procurar atualização…', 'upd.latest': 'Já tem a versão mais recente (v{v}).',
     'upd.found': 'Versão nova encontrada. A app vai recarregar dentro de segundos.',
     'upd.offline': 'Sem rede: não é possível procurar atualização agora.',
@@ -65,7 +71,7 @@ const DICT = {
 
     'map.layers': 'Tipo de mapa', 'map.locate': 'A minha posição',
 
-    'map.simpleTag': 'Mapa simples (sem satélite) — funciona sem rede',
+    'map.simpleTag': 'Mapa simples (o mapa guardado) — funciona sem rede',
     'map.offlineBanner': 'Sem rede: a imagem de satélite pode não carregar. Pode continuar a gravar.',
     'map.onlineBanner': 'A rede voltou.',
     'map.useSimple': 'Usar mapa simples', 'map.useGoogle': 'Mostrar satélite',
@@ -164,7 +170,7 @@ const DICT = {
  'set.lang': 'Língua',
  'set.maxAcc.d': 'Se o GPS estiver pior do que isto ao marcar um canto, a app avisa. 10 m é um bom valor.',
 
- 'set.mapMode.simple': 'Mapa simples (sem imagem)',
+ 'set.mapMode.simple': 'Mapa simples (funciona sem rede)',
  'set.mapType.hybrid': 'Satélite com nomes', 'set.mapType.satellite': 'Satélite',
     'set.mapType.roadmap': 'Mapa', 'set.mapType.terrain': 'Relevo',
 
@@ -214,9 +220,9 @@ const DICT = {
     'off.lastSync': 'Last contact with the server: {time}', 'off.never': 'No contact with the server yet',
 
     'off.map.title': 'Map for use without signal',
-    'off.map.note': 'Saves on the phone the roads, rivers, houses and village names (OpenStreetMap) in a {km} km square around the map centre. Without signal they appear on the simple map. Satellite images cannot be saved (Google does not allow it).',
-    'off.map.save': 'Save the map of this area ({km} km)',
-    'off.map.busy': 'Downloading the map… (may take up to a minute)',
+    'off.map.note': 'Saves on the phone the map around the map centre (OpenStreetMap). “This area”: a {km} km square, with houses. “Wide area”: {r} km radius, roads, rivers and villages only. Between Malema and Ribáue it also saves Sentinel-2 satellite images (1 pixel = 10 m: roads and fields are visible, fine details are not). Without signal it appears on the simple map. Google images cannot be saved.',
+    'off.map.save': 'Save this area ({km} km, with houses)',
+    'off.map.busy': 'Downloading the map… (may take 1–3 minutes)',
     'off.map.done': 'Map saved: {name} ({n} items). Ready to use without signal.',
     'off.map.fail': 'Could not download the map. Please try again in a moment.',
     'off.map.offline': 'No signal. Save the map where there is signal (before going to the field).',
@@ -224,7 +230,13 @@ const DICT = {
     'off.map.remove': 'Delete map',
     'off.map.removeConfirm': 'Delete the saved map of “{name}”? (records are not deleted)',
     'off.map.count': 'Maps saved for offline use: {n}',
-    'off.map.none': 'No offline map yet — map button → Save the map of this area',
+    'off.map.none': 'No offline map yet — map button → Save this area',
+    'off.map.saveWide': 'Save wide area ({r} km radius)',
+    'off.map.busySat': 'Downloading satellite images… {done}/{total}',
+    'off.map.doneSat': 'Map saved: {name} ({n} items, {sat} satellite tiles). Ready to use without signal.',
+    'off.map.kindNear': '{km} km',
+    'off.map.kindWide': '{r} km radius',
+    'off.map.withSat': 'with satellite',
     'upd.checking': 'Checking for update…', 'upd.latest': 'You have the latest version (v{v}).',
     'upd.found': 'New version found. The app will reload in a few seconds.',
     'upd.offline': 'No signal: cannot check for updates now.',
@@ -234,7 +246,7 @@ const DICT = {
 
     'map.layers': 'Map type', 'map.locate': 'My location',
 
-    'map.simpleTag': 'Simple map (no satellite) — works without signal',
+    'map.simpleTag': 'Simple map (your saved map) — works without signal',
     'map.offlineBanner': 'No signal: the satellite image may not load. You can keep recording.',
     'map.onlineBanner': 'Signal is back.',
     'map.useSimple': 'Use simple map', 'map.useGoogle': 'Show satellite',
@@ -333,7 +345,7 @@ const DICT = {
  'set.lang': 'Language',
  'set.maxAcc.d': 'If GPS is worse than this when you mark a corner, the app warns you. 10 m is a good value.',
 
- 'set.mapMode.simple': 'Simple map (no imagery)',
+ 'set.mapMode.simple': 'Simple map (works without signal)',
  'set.mapType.hybrid': 'Satellite with labels', 'set.mapType.satellite': 'Satellite',
     'set.mapType.roadmap': 'Map', 'set.mapType.terrain': 'Terrain',
 
@@ -383,9 +395,9 @@ const DICT = {
     'off.lastSync': 'サーバーと最後につながった時刻:{time}', 'off.never': 'まだサーバーとつながっていません',
 
     'off.map.title': '圏外用の地図',
-    'off.map.note': '地図の真ん中を中心に {km} km 四方の、道・川・建物・集落名(OpenStreetMap)をこの端末に保存します。圏外では簡易地図の上に出ます。衛星写真は Google の規約で保存できません。',
-    'off.map.save': 'この辺りの地図を保存({km} km 四方)',
-    'off.map.busy': '地図を取り込んでいます…(1分ほどかかることがあります)',
+    'off.map.note': '地図の真ん中のまわりを、この端末に保存します(OpenStreetMap)。「この辺り」は {km} km 四方で家まで。「広い範囲」は半径 {r} km で、道・川・集落名だけ。Malema〜Ribáue 周辺では衛星写真(Sentinel-2、1画素 10 m。道や畑は見えるが細かい所は見えない)も一緒に保存します。圏外では簡易地図に出ます。Google の画像は保存できません。',
+    'off.map.save': 'この辺りを保存({km} km 四方・家まで)',
+    'off.map.busy': '地図を取り込んでいます…(1〜3分かかることがあります)',
     'off.map.done': '地図を保存しました:{name}({n} 件)。圏外でも使えます。',
     'off.map.fail': '地図を取り込めませんでした。少し待ってもう一度お試しください。',
     'off.map.offline': '圏外です。電波のある所で(現場に行く前に)保存してください。',
@@ -393,7 +405,13 @@ const DICT = {
     'off.map.remove': '地図を削除',
     'off.map.removeConfirm': '「{name}」の保存した地図を削除しますか?(記録は消えません)',
     'off.map.count': '圏外用の地図:{n} か所 保存済み',
-    'off.map.none': '圏外用の地図はまだありません — 地図ボタン →「この辺りの地図を保存」',
+    'off.map.none': '圏外用の地図はまだありません — 地図ボタン →「この辺りを保存」',
+    'off.map.saveWide': '広い範囲を保存(半径 {r} km)',
+    'off.map.busySat': '衛星写真を取り込んでいます… {done}/{total}',
+    'off.map.doneSat': '地図を保存しました:{name}({n} 件、衛星写真 {sat} 枚)。圏外でも使えます。',
+    'off.map.kindNear': '{km} km 四方',
+    'off.map.kindWide': '半径 {r} km',
+    'off.map.withSat': '衛星写真あり',
     'upd.checking': 'アップデートを確認しています…', 'upd.latest': '最新版です(v{v})。',
     'upd.found': '新しい版が見つかりました。数秒で再読み込みします。',
     'upd.offline': '圏外なので、いまは確認できません。',
@@ -403,7 +421,7 @@ const DICT = {
 
     'map.layers': '地図の種類', 'map.locate': '現在地',
 
-    'map.simpleTag': '簡易地図(衛星写真なし)— 圏外でも動きます',
+    'map.simpleTag': '簡易地図(保存した地図)— 圏外でも動きます',
     'map.offlineBanner': '圏外です。衛星写真が出ないことがありますが、記録は続けられます。',
     'map.onlineBanner': '電波が戻りました。',
     'map.useSimple': '簡易地図にする', 'map.useGoogle': '衛星写真を表示',
@@ -502,7 +520,7 @@ const DICT = {
  'set.lang': '言語',
  'set.maxAcc.d': '角を打つときのGPSの誤差がこれより大きいと警告します。10 m が目安です。',
 
- 'set.mapMode.simple': '簡易地図(写真なし)',
+ 'set.mapMode.simple': '簡易地図(圏外でも動く)',
  'set.mapType.hybrid': '航空写真+地名', 'set.mapType.satellite': '航空写真',
     'set.mapType.roadmap': '地図', 'set.mapType.terrain': '地形',
 
@@ -522,7 +540,7 @@ const HELP = {
 <h3>1. Antes de ir ao campo (com rede)</h3>
 <ol><li>Abra a app uma vez com rede e entre com a conta Google. No menu deve aparecer <b>Pronto para usar sem rede</b>.</li>
 <li>No Chrome: menu ⋮ → <b>Adicionar ao ecrã principal</b>.</li>
-<li>Mova o mapa para a zona de trabalho → botão do mapa (canto direito) → <b>Guardar o mapa desta zona</b>. Repita para cada zona.</li></ol>
+<li>Mova o mapa para a zona de trabalho → botão do mapa (canto direito) → <b>Guardar esta zona</b> (casas, 10 km) ou <b>Guardar zona larga</b> (raio 100 km). Repita para cada zona. Entre Malema e Ribáue guarda também a imagem de satélite.</li></ol>
 <h3>2. Registar um campo</h3>
 <ol><li><b>Novo registo</b> → <b>Área</b>. A gravação começa logo.</li>
 <li>Ande pela borda e, em cada canto, toque em <b>Canto aqui</b>. A posição entra na hora. Normalmente bastam 4–10 pontos.</li>
@@ -544,7 +562,7 @@ const HELP = {
 <h3>1. Before going to the field (with signal)</h3>
 <ol><li>Open the app once with signal and sign in with Google. The menu should say <b>Ready to use offline</b>.</li>
 <li>In Chrome: menu ⋮ → <b>Add to Home screen</b>.</li>
-<li>Move the map to the work area → map button (right side) → <b>Save the map of this area</b>. Repeat for each area.</li></ol>
+<li>Move the map to the work area → map button (right side) → <b>Save this area</b> (houses, 10 km) or <b>Save wide area</b> (100 km radius). Repeat for each area. Between Malema and Ribáue the satellite image is saved too.</li></ol>
 <h3>2. Record a field</h3>
 <ol><li><b>New record</b> → <b>Area</b>. Recording starts at once.</li>
 <li>Walk along the edge and, at each corner, tap <b>Corner here</b>. The position is added instantly. Usually 4–10 points are enough.</li>
@@ -566,7 +584,7 @@ const HELP = {
 <h3>1. 現場に行く前に(電波のある所で)</h3>
 <ol><li>電波のある所で一度アプリを開き、Google でログインします。メニューに「<b>圏外で使う準備ができています</b>」と出れば OK。</li>
 <li>Chrome のメニュー ⋮ →「<b>ホーム画面に追加</b>」。</li>
-<li>地図を作業する場所へ動かし、右の地図ボタン →「<b>この辺りの地図を保存</b>」。場所ごとにくり返します。</li></ol>
+<li>地図を作業する場所へ動かし、右の地図ボタン →「<b>この辺りを保存</b>」(家まで・10 km 四方)か「<b>広い範囲を保存</b>」(半径 100 km)。場所ごとにくり返します。Malema〜Ribáue 周辺では衛星写真も保存されます。</li></ol>
 <h3>2. 圃場を記録する</h3>
 <ol><li>「<b>新しく記録</b>」→「<b>区画</b>」。すぐに記録が始まります。</li>
 <li>縁を歩き、角に来たら「<b>ここを角に</b>」をタップ。その場の位置がすぐ入ります。ふつうは 4〜10 点で足ります。</li>

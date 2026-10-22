@@ -9,8 +9,9 @@
 - **Google マップの上で見る。** 電波があるときは Google マップ(航空写真)に重ねて表示する。
   圏外では Google の地図は出ない(利用規約で地図のキャッシュが禁止されている)ため、
   自動で「簡易地図」(写真なし・方眼・縮尺つき)に切り替わる。記録の線と自分の位置はどちらでも出る。
-- **圏外用の地図を先に保存できる(v1.3.0)。** 電波のある所で、地図ボタン →「この辺りの地図を保存」。
-  地図の真ん中から 10 km 四方の道・川・池・建物・集落名(OpenStreetMap)を端末に入れ、圏外の簡易地図に描く。
+- **圏外用の地図を先に保存できる(v1.3.0〜)。** 電波のある所で、地図ボタン →
+  「この辺りを保存」(10 km 四方・家まで)か「広い範囲を保存」(半径 100 km・道と川と集落名)。
+  Malema〜Ribáue 周辺では **衛星写真(Sentinel-2、1画素 10 m)** も一緒に保存し、圏外の簡易地図に描く(v1.4.0)。
   しくみは下の「圏外用の地図」。
 - **共有しやすい。** 記録ごとに「Google マップで開く」「文章で共有(WhatsApp 等)」「KML を送る」。
   全体は KML / GeoJSON / CSV / ZIP で書き出せる。KML は Google Earth・Google マイマップ・QGIS でそのまま開ける。
@@ -45,7 +46,7 @@
 - **アプリを閉じたままの送信はできない。** 圏外で記録したものは、電波のある場所でアプリを一度開くと送られる
   (送信の待ち行列を Firestore の仕組みが持っていて、アプリが開いているときしか動かないため)。
 
-## 圏外用の地図(v1.3.0)
+## 圏外用の地図(v1.3.0〜v1.4.0)
 
 **しくみ。** OsmAnd・Organic Maps などのオフライン地図アプリと同じ考え方を小さく真似ている。
 地図の「絵」(タイル画像)を保存するのではなく、OpenStreetMap の「データ」(道や建物の線と形)を地域ごとに
@@ -61,7 +62,19 @@
 Malema の町を中心にした 10 km 四方で、約 1.2 万件(建物 11,906・道 195・川 14・地名 1)。
 取り込みは Wi-Fi で 30 秒〜1 分ほど、答えは約 7.6 MB(保存すると小さくなる)。2026-10-22 に実測。
 
-**衛星写真を保存しない理由。**
+**2段構え(v1.4.0、Kazさん「半径 100 km にできないか」)。**
+半径 100 km(200 km 四方)には建物が約 33 万件あり(10/22 実測)、窓口にも端末にも重すぎる。そこで
+「この辺り」(10 km 四方・建物まで)と「広い範囲」(200 km 四方・道 6,093・川 516・集落名 90、答え約 15 MB、約 40 秒)に分けた。
+
+**衛星写真(v1.4.0)。** Google・Mapbox・Esri の衛星写真は保存できないので、EU の Copernicus 計画の
+Sentinel-2(無料・商用可、出典「Contains modified Copernicus Sentinel data 2026」)を使う。
+`tools/s2_tiles.py` が雲のない画像(2026年8〜10月)をつないでタイル(WebP、ズーム 8〜14)に切り、
+別リポジトリ [field-gps-imagery](https://github.com/mameyompo-maker/field-gps-imagery) の GitHub Pages で配る。
+アプリは地図を保存するときに、その範囲のタイル(「この辺り」はズーム 10〜14、「広い範囲」は 8〜12)を
+Cache Storage `fgm-s2-v1` に入れる(`docs/lib/imagery.js`)。地図を消すと、ほかで使っていないタイルも消す。
+1画素 10 m なので、1 ha の畑は 10×10 画素ほど。道・川・畑のかたまりは見えるが、細かい境界は見えない。
+
+**Google などの衛星写真を保存しない理由。**
 - Google:地図・衛星写真の先読み・キャッシュ・オフライン利用は利用規約で禁止。
 - Esri World Imagery:オフラインの書き出しは ArcGIS の有料契約と ArcGIS 製アプリが前提。
 - EOX Sentinel-2 cloudless:商用は有償ライセンス。
@@ -81,9 +94,10 @@ Malema の町を中心にした 10 km 四方で、約 1.2 万件(建物 11,906�
   - `sw.js` オフライン用のキャッシュ。**docs/ を変えたら必ず `CACHE` の版数を上げる**
 - `firestore.rules` … field_visit_map のルールに `gpsFeatures` の項を足したもの。
   **Firebase プロジェクトを共有しているため、`../field_visit_map/firestore.rules` と常に同じ内容にする。**
-- `tests/fixtures/overpass_malema.json` … Overpass の本物の答え(Malema 10 km 四方、試験用。小さく詰め直してある)
+- `tests/fixtures/overpass_malema.json`・`overpass_wide_malema.json` … Overpass の本物の答え(Malema の 10 km 四方と半径 100 km、試験用。小さく詰め直してある)
+- `tools/s2_tiles.py` … 衛星写真のタイルを作る(出力は `../field_gps_imagery/docs/s2/`)
 - `tests/` … `node tests/test_geo.mjs`(面積・距離)、`node tests/test_i18n.mjs`(翻訳の抜け)、
-  `python tests/e2e_demo.py --shots`(Edge で歩行・写真・3言語・圏外・圏外用の地図を模擬した通し試験。106項目)、
+  `python tests/e2e_demo.py --shots`(Edge で歩行・写真・3言語・圏外・圏外用の地図・衛星写真を模擬した通し試験。117項目)、
   `python tests/check_production.py --shots`(本番URLの確認)
 
 ## データの形(Firestore `gpsFeatures`)

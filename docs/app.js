@@ -5,7 +5,8 @@
  *   lib/recorder.js   記録中の図形(下書き)の状態
  *   lib/map-google.js 電波があるときの地図(衛星写真)
  *   lib/map-simple.js 圏外用の簡易地図(方眼+保存した OpenStreetMap の道・川・建物)
- *   lib/offline-map.js 圏外用の地図の取り込みと保存(OpenStreetMap → この端末)
+ *   lib/offline-map.js 圏外用の地図の取り込みと保存(OpenStreetMap → この端末。10 km 四方と半径 100 km の2段)
+ *   lib/imagery.js     圏外用の衛星写真(Sentinel-2、1画素 10 m。field-gps-imagery から取り込む)
  *   lib/store-*.js    保存先(本番=Firestore、試用=この端末だけ)。写真もここ
  *   lib/photos.js     写真の縮小
  *   lib/export.js     KML/GeoJSON/CSV/ZIP の書き出しと読み込み(使うときだけ読み込む)
@@ -19,11 +20,12 @@ import { createSimpleMap } from './lib/map-simple.js';
 import { getSettings, saveSettings } from './lib/settings.js';
 import { catColor, defaultCategory, categoriesFor } from './lib/categories.js';
 import { preparePhoto, dataUrlToFile, MAX_PHOTOS } from './lib/photos.js';
-import { downloadArea, listAreas, deleteArea, mergeAreas, AREA_KM } from './lib/offline-map.js';
+import { downloadArea, listAreas, deleteArea, mergeAreas, satKeys, AREA_KM, WIDE_KM } from './lib/offline-map.js';
+import { loadIndex, pruneTiles, resetMemory } from './lib/imagery.js';
 // 書き出し・読み込みは使うときだけ読み込む(起動を軽くする)
 const loadExport = () => import('./lib/export.js');
 
-const VERSION = '1.3.0';
+const VERSION = '1.4.0';
 const $ = (id) => document.getElementById(id);
 const DEMO_KEY = 'fgm.demo';
 const VIEW_KEY = 'fgm.view';
@@ -230,6 +232,7 @@ function useSimple() {
   if (!simpleCtl) {
     simpleCtl = createSimpleMap($('mapSimple'), mapHandlers());
     simpleCtl.setBasemap(mergeAreas(savedAreas));
+    refreshImagery();
   }
   hideBanner();
   useMap(simpleCtl);
@@ -1241,13 +1244,15 @@ function openLayers() {
     ['roadmap', t('set.mapType.roadmap')], ['terrain', t('set.mapType.terrain')], ['simple', t('set.mapMode.simple')]
   ];
   d.innerHTML = `<h2></h2><nav class="menu-items lang-list"></nav>
-    <section class="offmap"><h3></h3><p class="muted small"></p><button type="button" class="btn-primary btn-wide tappable offmap-save"><svg class="ic"><use href="#i-download"/></svg><span></span></button><ul class="offmap-list"></ul></section>
+    <section class="offmap"><h3></h3><p class="muted small"></p><button type="button" class="btn-primary btn-wide tappable offmap-save"><svg class="ic"><use href="#i-download"/></svg><span></span></button><button type="button" class="btn-secondary btn-wide tappable offmap-wide"><svg class="ic"><use href="#i-download"/></svg><span></span></button><ul class="offmap-list"></ul></section>
     <div class="dlg-buttons"><button type="button" class="btn-ghost"></button></div>`;
   d.querySelector('h2').textContent = t('map.layers');
   d.querySelector('.offmap h3').textContent = t('off.map.title');
-  d.querySelector('.offmap p').textContent = t('off.map.note', { km: AREA_KM });
+  d.querySelector('.offmap p').textContent = t('off.map.note', { km: AREA_KM, r: WIDE_KM / 2 });
   d.querySelector('.offmap-save span').textContent = t('off.map.save', { km: AREA_KM });
-  d.querySelector('.offmap-save').addEventListener('click', () => { d.close(); saveOfflineArea(); });
+  d.querySelector('.offmap-wide span').textContent = t('off.map.saveWide', { r: WIDE_KM / 2 });
+  d.querySelector('.offmap-save').addEventListener('click', () => { d.close(); saveOfflineArea(false); });
+  d.querySelector('.offmap-wide').addEventListener('click', () => { d.close(); saveOfflineArea(true); });
   renderAreaList(d.querySelector('.offmap-list'), d);
   d.querySelector('.dlg-buttons button').textContent = t('common.close');
   const nav = d.querySelector('nav');
@@ -1278,20 +1283,37 @@ function openLayers() {
 
 function refreshBasemap() {
   if (simpleCtl) simpleCtl.setBasemap(mergeAreas(savedAreas));
+  refreshImagery();
   if ($('menuDialog').open) renderStatus();
 }
 
-/** いま地図の真ん中に見えている所を中心に、一辺 AREA_KM km の地図を取り込む。 */
-async function saveOfflineArea() {
+/** 衛星写真を保存した地図があるときだけ、簡易地図に衛星写真を描かせる。 */
+async function refreshImagery() {
+  if (!simpleCtl) return;
+  const any = savedAreas.some((a) => a.sat > 0);
+  simpleCtl.setImagery(any ? await loadIndex() : null);
+}
+
+/** いま地図の真ん中に見えている所を中心に、地図(と範囲内なら衛星写真)を取り込む。
+ *  wide = false:一辺 AREA_KM km、建物まで。wide = true:一辺 WIDE_KM km、道・川・集落名だけ。 */
+async function saveOfflineArea(wide) {
   if (!navigator.onLine) { toast(t('off.map.offline'), 6000); return; }
   const v = (mapCtl && mapCtl.getView && mapCtl.getView()) || lastFix();
   if (!v) return;
-  toast(t('off.map.busy'), 120000);
+  toast(t('off.map.busy'), 300000);
   try {
-    const area = await downloadArea({ lat: v.lat, lng: v.lng });
+    const area = await downloadArea({ lat: v.lat, lng: v.lng }, {
+      wide,
+      onProgress: (stage, done, total) => {
+        if (stage === 'sat') updateToast(t('off.map.busySat', { done, total }), 300000);
+      }
+    });
     savedAreas = await listAreas();
+    resetMemory();
     refreshBasemap();
-    toast(t('off.map.done', { name: area.name, n: area.n.toLocaleString(locale()) }), 6000);
+    const n = area.n.toLocaleString(locale());
+    toast(area.sat ? t('off.map.doneSat', { name: area.name, n, sat: area.sat.toLocaleString(locale()) })
+      : t('off.map.done', { name: area.name, n }), 7000);
   } catch (err) {
     console.warn('offline map', err);
     toast(t('off.map.fail'), 7000);
@@ -1304,17 +1326,23 @@ function renderAreaList(ul, dlg) {
     const li = document.createElement('li');
     li.innerHTML = '<button type="button" class="offmap-go tappable"><strong></strong><span class="muted small"></span></button><button type="button" class="icon-btn tappable offmap-del"><svg class="ic"><use href="#i-close"/></svg></button>';
     li.querySelector('strong').textContent = a.name;
-    li.querySelector('span').textContent = t('off.map.item', {
-      date: new Date(a.savedAt).toLocaleDateString(locale()), n: a.n.toLocaleString(locale())
-    });
+    li.querySelector('span').textContent = [
+      a.kind === 'wide' ? t('off.map.kindWide', { r: WIDE_KM / 2 }) : t('off.map.kindNear', { km: AREA_KM }),
+      t('off.map.item', { date: new Date(a.savedAt).toLocaleDateString(locale()), n: a.n.toLocaleString(locale()) }),
+      a.sat ? t('off.map.withSat') : ''
+    ].filter(Boolean).join(' · ');
     li.querySelector('.offmap-del').setAttribute('aria-label', t('off.map.remove'));
-    li.querySelector('.offmap-go').addEventListener('click', () => { dlg.close(); mapCtl.centerOn(a.center, 15); });
+    li.querySelector('.offmap-go').addEventListener('click', () => { dlg.close(); mapCtl.centerOn(a.center, a.kind === 'wide' ? 10 : 15); });
     li.querySelector('.offmap-del').addEventListener('click', async () => {
       dlg.close();
       const ok = await confirmDlg(t('off.map.removeConfirm', { name: a.name }), t('off.map.remove'), t('common.cancel'));
       if (!ok) return;
       await deleteArea(a.id);
       savedAreas = await listAreas();
+      // ほかの保存地図に使っていない衛星写真も消す
+      const index = await loadIndex();
+      if (index) await pruneTiles(savedAreas.flatMap((x) => (x.sat ? satKeys(x, index) : [])));
+      resetMemory();
       refreshBasemap();
     });
     ul.appendChild(li);
@@ -1338,6 +1366,14 @@ function toast(msg, ms = 3500) {
   el.style.animation = 'none';
   void el.offsetWidth;
   el.style.animation = '';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, ms);
+}
+/** 進み具合など、出ているトーストの文言だけを差し替える(出てくる動きをくり返さない)。 */
+function updateToast(msg, ms) {
+  const el = $('toast');
+  if (el.hidden) { toast(msg, ms); return; }
+  el.textContent = msg;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { el.hidden = true; }, ms);
 }

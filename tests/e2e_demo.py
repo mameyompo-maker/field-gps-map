@@ -31,6 +31,11 @@ PHOTO2 = os.path.join(ROOT, 'tests', 'fixtures', 'field_photo2.jpg')
 # Overpass の本物の答え(2026-10-22 取得、Malema の町を中心に 10 km 四方)。試験では本物の窓口に問い合わせない。
 OVERPASS = os.path.join(ROOT, 'tests', 'fixtures', 'overpass_malema.json')
 MALEMA = {'lat': -14.955, 'lng': 37.41}
+# 広い範囲(半径 100 km、道・川・集落名だけ)の本物の答え(2026-10-22 取得、小さく詰め直したもの)
+OVERPASS_WIDE = os.path.join(ROOT, 'tests', 'fixtures', 'overpass_wide_malema.json')
+# 衛星写真のタイル(tools/s2_tiles.py で作ったもの。本番は別リポジトリ field-gps-imagery)
+IMAGERY = os.path.join(os.path.dirname(ROOT), 'field_gps_imagery', 'docs', 's2')
+S2_COUNT = "() => caches.open('fgm-s2-v1').then((c) => c.keys()).then((k) => k.filter((r) => r.url.endsWith('.webp')).length)"
 
 ok = 0
 ng = 0
@@ -114,7 +119,7 @@ def main():
         check('help dialog shown first time', page.locator('#helpDialog[open]').count() == 1)
         page.wait_for_timeout(200)
         check('help starts at the top', page.evaluate("document.querySelector('#helpDialog').scrollTop") == 0)
-        check('version 1.3.0', page.evaluate('window.__fgm.version') == '1.3.0')
+        check('version 1.4.0', page.evaluate('window.__fgm.version') == '1.4.0')
         shot(page, '01_help')
         close_help(page)
         page.wait_for_function("() => document.querySelector('#gpsText').textContent.includes('±')", timeout=10000)
@@ -393,7 +398,7 @@ def main():
         page.wait_for_timeout(800)
         check('no raw keys in menu (en)', not raw_keys(), str(raw_keys()))
         check('menu has 5 items', page.locator('#menuDialog .menu-items button').count() == 5)
-        check('version line offers update check', 'v1.3.0' in page.inner_text('#menuUpdate'), page.inner_text('#menuUpdate'))
+        check('version line offers update check', 'v1.4.0' in page.inner_text('#menuUpdate'), page.inner_text('#menuUpdate'))
         shot(page, '10_menu_en')
         close_dialog(page, '#menuDialog')
 
@@ -404,12 +409,25 @@ def main():
         # ---------------------------------------------------- 圏外用の地図を保存(OpenStreetMap)
         print('[10b] 圏外用の地図を保存')
         overpass_body = open(OVERPASS, 'rb').read()
+        overpass_wide = open(OVERPASS_WIDE, 'rb').read()
         asked = []
+        img_hits = []
 
         def fake_overpass(route):
-            asked.append(route.request.post_data or '')
-            route.fulfill(status=200, content_type='application/json', body=overpass_body)
+            q = route.request.post_data or ''
+            asked.append(q)
+            route.fulfill(status=200, content_type='application/json', body=overpass_body if 'building' in q else overpass_wide)
+
+        def fake_imagery(route):
+            rel = route.request.url.split('/field-gps-imagery/s2/')[1].split('?')[0]
+            f = os.path.join(IMAGERY, *rel.split('/'))
+            if os.path.exists(f):
+                img_hits.append(rel)
+                route.fulfill(status=200, path=f, content_type='application/json' if f.endswith('.json') else 'image/webp')
+            else:
+                route.fulfill(status=404, body='')
         ctx.route('**/api/interpreter', fake_overpass)
+        ctx.route('**/field-gps-imagery/s2/**', fake_imagery)
         page.evaluate("(c) => window.__fgm.map.centerOn(c, 15)", MALEMA)
         page.wait_for_timeout(300)
         page.click('#btnMenu')
@@ -428,6 +446,8 @@ def main():
         check('area named after the town', a['name'] == 'Malema', a['name'])
         check('area has >10000 items', a['n'] > 10000, str(a['n']))
         check('area about 10 km square', abs((a['bbox'][2] - a['bbox'][0]) * 111.32 - 10) < 0.1)
+        check('satellite tiles saved with the area', a['sat'] > 20, str(a['sat']))
+        check('satellite tiles are in Cache Storage', page.evaluate(S2_COUNT) == a['sat'], str(page.evaluate(S2_COUNT)))
         page.wait_for_timeout(300)
         shot(page, '10c_osm_town')
         page.evaluate("(c) => window.__fgm.map.centerOn(c, 12)", MALEMA)
@@ -438,7 +458,35 @@ def main():
         page.wait_for_timeout(500)
         check('menu counts saved maps', 'ok' in (page.get_attribute('#stMaps', 'class') or ''), page.get_attribute('#stMaps', 'class') + ' ' + page.inner_text('#stMaps'))
         close_dialog(page, '#menuDialog')
+
+        # 広い範囲(半径 100 km)
+        page.click('#btnLayers')
+        page.wait_for_selector('.offmap-wide')
+        check('layers dialog offers the wide area', page.is_visible('.offmap-wide'), page.inner_text('.offmap-wide'))
+        page.click('.offmap-wide')
+        page.wait_for_function('window.__fgm.savedAreas.length === 2', timeout=90000)
+        w = [x for x in page.evaluate('window.__fgm.savedAreas') if x.get('kind') == 'wide'][0]
+        check('wide query has no buildings', 'building' not in asked[-1])
+        check('wide area about 200 km square', abs((w['bbox'][2] - w['bbox'][0]) * 111.32 - 200) < 1, str(w['bbox']))
+        check('wide area has roads and rivers', len(w['data']['roads']) > 5000 and len(w['data']['rivers']) > 400,
+              f"{len(w['data']['roads'])} roads {len(w['data']['rivers'])} rivers")
+        check('wide area has no buildings', len(w['data']['buildings']) == 0)
+        check('wide satellite tiles saved', w['sat'] > 200, str(w['sat']))
+        page.wait_for_timeout(400)
+        page.evaluate("(c) => window.__fgm.map.centerOn(c, 10)", MALEMA)
+        page.wait_for_timeout(1500)
+        shot(page, '10e_wide_sat')
+        page.evaluate("(c) => window.__fgm.map.centerOn(c, 15)", MALEMA)
+        page.wait_for_timeout(1500)
+        shot(page, '10f_near_sat')
+        page.click('#btnLayers')
+        page.wait_for_selector('.offmap-list li')
+        check('list shows both maps', page.locator('.offmap-list li').count() == 2, page.inner_text('.offmap-list'))
+        shot(page, '10g_list')
+        close_dialog(page, '#layersDialog')
+        page.keyboard.press('Escape')
         ctx.unroute('**/api/interpreter')
+        ctx.unroute('**/field-gps-imagery/s2/**')
 
         # ---------------------------------------------------- 圏外で開き直す(Service Worker)
         print('[11] 圏外')
@@ -450,14 +498,16 @@ def main():
         page.wait_for_selector('#mainScreen:not([hidden])', timeout=15000)
         check('app opens offline', page.is_visible('#fabNew'))
         check('features kept offline', len(page.evaluate('window.__fgm.features')) == 8)
-        check('offline map kept offline', len(page.evaluate('window.__fgm.savedAreas')) == 1)
+        check('offline maps kept offline', len(page.evaluate('window.__fgm.savedAreas')) == 2)
         page.evaluate("(c) => window.__fgm.map.centerOn(c, 16)", MALEMA)
-        page.wait_for_timeout(300)
+        page.wait_for_timeout(1500)
         shot(page, '11a_offline_osm')
         page.click('#btnLayers')
         page.click('.offmap-save')
         page.wait_for_timeout(300)
-        check('saving offline is refused politely', len(page.evaluate('window.__fgm.savedAreas')) == 1 and page.is_visible('#toast'))
+        # Playwright の is_visible は、閉じたばかりの <dialog> の影響か False を返すことがあるので、DOM で確かめる
+        shown = page.evaluate("() => { const e = document.getElementById('toast'); return !e.hidden && e.getBoundingClientRect().height > 0 ? e.textContent : ''; }")
+        check('saving offline is refused politely', len(page.evaluate('window.__fgm.savedAreas')) == 2 and bool(shown), shown)
         move(ctx, 300, 300, acc=5)
         page.wait_for_timeout(400)
         page.click('#fabNew')
@@ -478,13 +528,18 @@ def main():
         ctx.set_offline(False)
 
         # 保存した地図の削除
-        page.click('#btnLayers')
-        page.wait_for_selector('.offmap-del')
-        page.click('.offmap-del')
-        page.wait_for_selector('#confirmDialog[open]')
-        page.click('#confirmYes')
-        page.wait_for_function('window.__fgm.savedAreas.length === 0', timeout=5000)
-        check('offline map deleted', True)
+        for left in (1, 0):
+            page.click('#btnLayers')
+            page.wait_for_selector('.offmap-del')
+            page.locator('.offmap-del').first.click()
+            page.wait_for_selector('#confirmDialog[open]')
+            page.click('#confirmYes')
+            page.wait_for_function(f'window.__fgm.savedAreas.length === {left}', timeout=10000)
+            page.wait_for_timeout(500)
+            if left == 1:
+                check('tiles of the other map kept', page.evaluate(S2_COUNT) > 0, str(page.evaluate(S2_COUNT)))
+        check('offline maps deleted', True)
+        check('satellite tiles removed with the maps', page.evaluate(S2_COUNT) == 0, str(page.evaluate(S2_COUNT)))
         check('records untouched by map delete', len(page.evaluate('window.__fgm.features')) == 9)
 
         real_errors = [e for e in errors if 'maps.googleapis' not in e and 'ERR_INTERNET_DISCONNECTED' not in e and 'Failed to load resource' not in e]

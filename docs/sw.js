@@ -18,7 +18,7 @@
  * docs/ のファイルを1つでも変えたら CACHE の版数を必ず上げること。
  * 上げ忘れると、既に開いた端末が古い版を使い続ける(field_visit_map で実際に詰まった)。
  */
-const CACHE = 'field-gps-map-v5';
+const CACHE = 'field-gps-map-v6';
 
 const FILES = [
   './',
@@ -41,6 +41,7 @@ const FILES = [
   './lib/zip.js',
   './lib/photos.js',
   './lib/offline-map.js',
+  './lib/imagery.js',
   './lib/store-local.js',
   './lib/store-firestore.js',
   './lib/firebase-init.js',
@@ -81,7 +82,8 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((names) => Promise.all(
-      names.filter((n) => n !== CACHE).map((n) => caches.delete(n))
+      // 消すのはアプリ本体の古い版だけ。衛星写真(fgm-s2-…)は残す。
+      names.filter((n) => n !== CACHE && n.indexOf('field-gps-map-') === 0).map((n) => caches.delete(n))
     )).then(() => self.clients.claim())
   );
 });
