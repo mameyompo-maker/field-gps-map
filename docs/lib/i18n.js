@@ -14,7 +14,7 @@ const DICT = {
     'login.lead': 'Registe campos, linhas e pontos com o GPS do telemóvel — mesmo sem rede — e partilhe com a equipa.',
     'login.p1': 'Funciona sem rede: os registos ficam no telemóvel e são enviados sozinhos quando houver rede.',
     'login.p2': 'Ande à volta do campo e toque num botão em cada canto. A área em hectares aparece na hora.',
-    'login.p3': 'Fotos do campo, mapa de satélite do Google e exportação para Google Earth e Excel.',
+    'login.p3': 'Fotos do campo, mapa de satélite que funciona sem rede e exportação para Google Earth e Excel.',
     'login.google': 'Entrar com Google',
     'login.demo': 'Experimentar sem conta (só neste telemóvel)',
     'login.loading': 'A carregar…',
@@ -45,7 +45,7 @@ const DICT = {
     'off.lastSync': 'Última ligação ao servidor: {time}', 'off.never': 'Ainda sem ligação ao servidor',
 
     'off.map.title': 'Mapa para usar sem rede',
-    'off.map.note': 'Guarda no telemóvel o mapa à volta do centro do mapa (OpenStreetMap). «Esta zona»: quadrado de {km} km com casas. «Zona larga»: raio de {r} km, só estradas, rios e povoações. A imagem de satélite Sentinel-2 de Malema a Ribáue (cada ponto = 10 m; vê-se estradas e machambas, não os detalhes) é guardada automaticamente quando há rede. Sem rede, aparece no mapa simples. A imagem do Google não pode ser guardada.',
+    'off.map.note': 'Opcional: guarda no telemóvel mais detalhes à volta do centro do mapa (OpenStreetMap). «Esta zona»: quadrado de {km} km com casas. «Zona larga»: raio de {r} km, estradas, rios e povoações (útil fora de Monapo e Malema–Ribáue).',
     'off.map.save': 'Guardar esta zona ({km} km, com casas)',
     'off.map.busy': 'A descarregar o mapa… (pode levar 1 a 3 minutos)',
     'off.map.done': 'Mapa guardado: {name} ({n} elementos). Já pode usar sem rede.',
@@ -57,21 +57,14 @@ const DICT = {
     'off.map.count': 'Mapas guardados para usar sem rede: {n}',
     'off.map.none': 'Ainda sem mapa guardado — botão do mapa → Guardar esta zona',
     'off.map.saveWide': 'Guardar zona larga (raio {r} km)',
-    'off.map.busySat': 'A descarregar a imagem de satélite… {done}/{total}',
-    'off.map.doneSat': 'Mapa guardado: {name} ({n} elementos, {sat} imagens de satélite). Já pode usar sem rede.',
     'off.map.kindNear': '{km} km',
     'off.map.kindWide': 'raio {r} km',
     'off.map.withSat': 'com satélite',
-    's2.start': 'A guardar a imagem de satélite (Sentinel-2, Malema–Ribáue, cerca de 60 MB) em segundo plano. Se a rede cair, continua da próxima vez.',
-    's2.done': 'Imagem de satélite guardada. Aparece no mapa simples, mesmo sem rede.',
-    's2.ready': 'Satélite (Sentinel-2) guardado: {n} partes',
-    's2.busy': 'A guardar o satélite… {have}/{total}',
-    's2.waiting': 'Satélite: será guardado quando houver rede',
     'off.img.title': 'Fotos aéreas e de satélite (ficheiros)',
-    'off.img.note': 'Fotos de drone (ortofoto) ou imagens de satélite compradas, em GeoTIFF ou KMZ (Google Earth). Ficam no telemóvel e aparecem no mapa simples, mesmo sem rede. Não use imagens copiadas do Google ou da Esri.',
+    'off.img.note': 'Fotos de drone (ortofoto) ou imagens de satélite compradas, em GeoTIFF ou KMZ (Google Earth). Ficam no telemóvel e aparecem no mapa, mesmo sem rede. Não use imagens copiadas do Google ou da Esri.',
     'off.img.add': 'Abrir ficheiro (GeoTIFF, KMZ)',
     'off.img.busy': 'A preparar a imagem… {done}/{total}',
-    'off.img.done': 'Imagem guardada: {name} ({res} por pixel). Aparece no mapa simples.',
+    'off.img.done': 'Imagem guardada: {name} ({res} por pixel). Aparece no mapa.',
     'off.img.item': '{date} · {res}/pixel · {mb} MB',
     'off.img.removeConfirm': 'Apagar a imagem «{name}» deste telemóvel?',
     'off.img.fail': 'Não foi possível abrir o ficheiro. {msg}',
@@ -89,13 +82,21 @@ const DICT = {
     'upd.deferred': 'Há uma versão nova. Atualiza sozinha quando terminar a gravação.',
 
     'map.layers': 'Tipo de mapa', 'map.locate': 'A minha posição',
+    'map.type.sat': 'Satélite (com estradas e limites)', 'map.type.plain': 'Mapa sem satélite',
+    'mapdata.title': 'Dados do mapa (automático)',
+    'mapdata.note': 'Imagem de satélite de alta qualidade (Sentinel-2, cada ponto = 10 m), estradas, rios e limites das localidades — Monapo e Malema–Ribáue. São transferidos sozinhos quando há rede e depois funcionam sem rede.',
+    'mapdata.retry': 'Transferir agora',
+    'mapdata.checking': 'A verificar os dados do mapa…',
+    'mapdata.waiting': 'Os dados do mapa serão transferidos quando houver rede',
+    'mapdata.ready': 'Mapa pronto para usar sem rede ({mb} MB)',
+    'mapdata.busy': 'A transferir o mapa… {pct}% ({have}/{total} MB)',
+    'mapdata.busyBg': 'A transferir o mapa em segundo plano… {pct}% ({have}/{total} MB). Pode fechar a app.',
+    'mapdata.partial': 'Mapa: {pct}% transferido. O resto é transferido automaticamente.',
+    'mapdata.waitingPct': 'Mapa: {pct}% transferido. Continua quando houver rede.',
+    'mapdata.start': 'A transferir o mapa de satélite ({mb} MB). Deixe a app aberta até terminar; se a rede cair, continua da próxima vez.',
+    'mapdata.startBg': 'A transferir o mapa de satélite ({mb} MB) em segundo plano. Pode fechar a app: o progresso aparece nas notificações.',
+    'mapdata.done': 'Mapa de satélite pronto. Funciona sem rede.',
 
-    'map.simpleTag': 'Mapa simples (o mapa guardado) — funciona sem rede',
-    'map.offlineBanner': 'Sem rede: a imagem de satélite pode não carregar. Pode continuar a gravar.',
-    'map.onlineBanner': 'A rede voltou.',
-    'map.useSimple': 'Usar mapa simples', 'map.useGoogle': 'Mostrar satélite',
-    'map.tilesFail': 'O mapa do Google não carregou.',
-    'map.googleFail': 'O mapa do Google não está disponível agora (sem rede?). A usar o mapa simples.',
 
     'gps.wait': 'GPS…', 'gps.off': 'GPS desligado',
     'gps.waiting': 'À espera do sinal GPS. Fique num lugar aberto (sem árvores por cima) durante 1–2 minutos.',
@@ -197,9 +198,6 @@ const DICT = {
  'set.lang': 'Língua',
  'set.maxAcc.d': 'Se o GPS estiver pior do que isto ao marcar um canto, a app avisa. 10 m é um bom valor.',
 
- 'set.mapMode.simple': 'Mapa simples (funciona sem rede)',
- 'set.mapType.hybrid': 'Satélite com nomes', 'set.mapType.satellite': 'Satélite',
-    'set.mapType.roadmap': 'Mapa', 'set.mapType.terrain': 'Relevo',
 
     'sync.demo': 'Teste', 'sync.ok': 'Enviado', 'sync.cache': 'Guardado', 'sync.offline': 'Sem rede',
     'sync.offlineN': 'Sem rede · {n} por enviar', 'sync.pending': '{n} por enviar', 'sync.badge': 'por enviar',
@@ -216,7 +214,7 @@ const DICT = {
     'login.lead': 'Record fields, lines and points with your phone’s GPS — even without signal — and share them with the team.',
     'login.p1': 'Works offline: records stay on the phone and upload by themselves when there is signal.',
     'login.p2': 'Walk around the field and tap a button at each corner. The area in hectares appears at once.',
-    'login.p3': 'Field photos, Google satellite map, and export to Google Earth and Excel.',
+    'login.p3': 'Field photos, a satellite map that works without signal, and export to Google Earth and Excel.',
     'login.google': 'Sign in with Google',
     'login.demo': 'Try without an account (this phone only)',
     'login.loading': 'Loading…',
@@ -247,7 +245,7 @@ const DICT = {
     'off.lastSync': 'Last contact with the server: {time}', 'off.never': 'No contact with the server yet',
 
     'off.map.title': 'Map for use without signal',
-    'off.map.note': 'Saves on the phone the map around the map centre (OpenStreetMap). “This area”: a {km} km square, with houses. “Wide area”: {r} km radius, roads, rivers and villages only. The Sentinel-2 satellite image of Malema–Ribáue (1 pixel = 10 m: roads and fields are visible, fine details are not) is saved automatically when there is signal. Without signal it appears on the simple map. Google images cannot be saved.',
+    'off.map.note': 'Optional: saves more detail around the map centre on the phone (OpenStreetMap). “This area”: a {km} km square, with houses. “Wide area”: {r} km radius, roads, rivers and villages (useful outside Monapo and Malema–Ribáue).',
     'off.map.save': 'Save this area ({km} km, with houses)',
     'off.map.busy': 'Downloading the map… (may take 1–3 minutes)',
     'off.map.done': 'Map saved: {name} ({n} items). Ready to use without signal.',
@@ -259,21 +257,14 @@ const DICT = {
     'off.map.count': 'Maps saved for offline use: {n}',
     'off.map.none': 'No offline map yet — map button → Save this area',
     'off.map.saveWide': 'Save wide area ({r} km radius)',
-    'off.map.busySat': 'Downloading satellite images… {done}/{total}',
-    'off.map.doneSat': 'Map saved: {name} ({n} items, {sat} satellite tiles). Ready to use without signal.',
     'off.map.kindNear': '{km} km',
     'off.map.kindWide': '{r} km radius',
     'off.map.withSat': 'with satellite',
-    's2.start': 'Saving the satellite image (Sentinel-2, Malema–Ribáue, about 60 MB) in the background. If the signal drops, it continues next time.',
-    's2.done': 'Satellite image saved. It shows on the simple map, even without signal.',
-    's2.ready': 'Satellite (Sentinel-2) saved: {n} tiles',
-    's2.busy': 'Saving satellite… {have}/{total}',
-    's2.waiting': 'Satellite: will be saved when there is signal',
     'off.img.title': 'Aerial and satellite photos (files)',
-    'off.img.note': 'Drone photos (orthophoto) or purchased satellite images, as GeoTIFF or KMZ (Google Earth). They stay on this phone and show on the simple map, even without signal. Do not use images copied from Google or Esri.',
+    'off.img.note': 'Drone photos (orthophoto) or purchased satellite images, as GeoTIFF or KMZ (Google Earth). They stay on this phone and show on the map, even without signal. Do not use images copied from Google or Esri.',
     'off.img.add': 'Open a file (GeoTIFF, KMZ)',
     'off.img.busy': 'Preparing the image… {done}/{total}',
-    'off.img.done': 'Image saved: {name} ({res} per pixel). It shows on the simple map.',
+    'off.img.done': 'Image saved: {name} ({res} per pixel). It shows on the map.',
     'off.img.item': '{date} · {res}/pixel · {mb} MB',
     'off.img.removeConfirm': 'Delete the image “{name}” from this phone?',
     'off.img.fail': 'Could not open the file. {msg}',
@@ -291,13 +282,21 @@ const DICT = {
     'upd.deferred': 'A new version is available. It will update by itself when the recording ends.',
 
     'map.layers': 'Map type', 'map.locate': 'My location',
+    'map.type.sat': 'Satellite (with roads and boundaries)', 'map.type.plain': 'Map without satellite',
+    'mapdata.title': 'Map data (automatic)',
+    'mapdata.note': 'High-quality satellite image (Sentinel-2, 1 pixel = 10 m), roads, rivers and locality boundaries — Monapo and Malema–Ribáue. Downloaded by itself when there is signal, then works without signal.',
+    'mapdata.retry': 'Download now',
+    'mapdata.checking': 'Checking map data…',
+    'mapdata.waiting': 'Map data will download when there is signal',
+    'mapdata.ready': 'Map ready to use without signal ({mb} MB)',
+    'mapdata.busy': 'Downloading the map… {pct}% ({have}/{total} MB)',
+    'mapdata.busyBg': 'Downloading the map in the background… {pct}% ({have}/{total} MB). You can close the app.',
+    'mapdata.partial': 'Map: {pct}% downloaded. The rest downloads automatically.',
+    'mapdata.waitingPct': 'Map: {pct}% downloaded. It continues when there is signal.',
+    'mapdata.start': 'Downloading the satellite map ({mb} MB). Keep the app open until it finishes; if the signal drops, it continues next time.',
+    'mapdata.startBg': 'Downloading the satellite map ({mb} MB) in the background. You can close the app: progress shows in the notifications.',
+    'mapdata.done': 'Satellite map ready. It works without signal.',
 
-    'map.simpleTag': 'Simple map (your saved map) — works without signal',
-    'map.offlineBanner': 'No signal: the satellite image may not load. You can keep recording.',
-    'map.onlineBanner': 'Signal is back.',
-    'map.useSimple': 'Use simple map', 'map.useGoogle': 'Show satellite',
-    'map.tilesFail': 'The Google map did not load.',
-    'map.googleFail': 'Google Maps is not available now (no signal?). Using the simple map.',
 
     'gps.wait': 'GPS…', 'gps.off': 'GPS off',
     'gps.waiting': 'Waiting for GPS. Stand in an open place (no trees overhead) for 1–2 minutes.',
@@ -399,9 +398,6 @@ const DICT = {
  'set.lang': 'Language',
  'set.maxAcc.d': 'If GPS is worse than this when you mark a corner, the app warns you. 10 m is a good value.',
 
- 'set.mapMode.simple': 'Simple map (works without signal)',
- 'set.mapType.hybrid': 'Satellite with labels', 'set.mapType.satellite': 'Satellite',
-    'set.mapType.roadmap': 'Map', 'set.mapType.terrain': 'Terrain',
 
     'sync.demo': 'Test', 'sync.ok': 'Sent', 'sync.cache': 'Saved', 'sync.offline': 'Offline',
     'sync.offlineN': 'Offline · {n} to send', 'sync.pending': '{n} to send', 'sync.badge': 'not sent',
@@ -418,7 +414,7 @@ const DICT = {
     'login.lead': 'スマホのGPSで区画・線・地点を記録し、チームで共有するアプリです。電波が無くても記録できます。',
     'login.p1': '圏外でも記録できます。記録は端末に保存され、電波が戻ると自動で送信されます。',
     'login.p2': '圃場の縁を歩き、角でボタンをタップするだけ。面積(ha)がその場で出ます。',
-    'login.p3': '圃場の写真、Google マップの衛星写真、Google Earth・Excel への書き出し。',
+    'login.p3': '圃場の写真、圏外でも見られる衛星写真の地図、Google Earth・Excel への書き出し。',
     'login.google': 'Googleでログイン',
     'login.demo': 'アカウントなしで試す(この端末だけ)',
     'login.loading': '読み込み中…',
@@ -449,7 +445,7 @@ const DICT = {
     'off.lastSync': 'サーバーと最後につながった時刻:{time}', 'off.never': 'まだサーバーとつながっていません',
 
     'off.map.title': '圏外用の地図',
-    'off.map.note': '地図の真ん中のまわりを、この端末に保存します(OpenStreetMap)。「この辺り」は {km} km 四方で家まで。「広い範囲」は半径 {r} km で、道・川・集落名だけ。Malema〜Ribáue の衛星写真(Sentinel-2、1画素 10 m。道や畑は見えるが細かい所は見えない)は、電波のあるときに自動で入ります。圏外では簡易地図に出ます。Google の画像は保存できません。',
+    'off.map.note': '必要なときだけ:地図の真ん中のまわりを、さらに細かくこの端末に保存します(OpenStreetMap)。「この辺り」は {km} km 四方で家まで。「広い範囲」は半径 {r} km で、道・川・集落名(Monapo と Malema〜Ribáue の外で役立ちます)。',
     'off.map.save': 'この辺りを保存({km} km 四方・家まで)',
     'off.map.busy': '地図を取り込んでいます…(1〜3分かかることがあります)',
     'off.map.done': '地図を保存しました:{name}({n} 件)。圏外でも使えます。',
@@ -461,21 +457,14 @@ const DICT = {
     'off.map.count': '圏外用の地図:{n} か所 保存済み',
     'off.map.none': '圏外用の地図はまだありません — 地図ボタン →「この辺りを保存」',
     'off.map.saveWide': '広い範囲を保存(半径 {r} km)',
-    'off.map.busySat': '衛星写真を取り込んでいます… {done}/{total}',
-    'off.map.doneSat': '地図を保存しました:{name}({n} 件、衛星写真 {sat} 枚)。圏外でも使えます。',
     'off.map.kindNear': '{km} km 四方',
     'off.map.kindWide': '半径 {r} km',
     'off.map.withSat': '衛星写真あり',
-    's2.start': '衛星写真(Sentinel-2、Malema〜Ribáue、約 60 MB)を裏で取り込んでいます。電波が切れたら、次に電波のあるときに続きから。',
-    's2.done': '衛星写真を取り込みました。圏外でも簡易地図に表示されます。',
-    's2.ready': '衛星写真(Sentinel-2):{n} 枚 入っています',
-    's2.busy': '衛星写真を取り込み中… {have}/{total}',
-    's2.waiting': '衛星写真:電波のあるときに自動で取り込みます',
     'off.img.title': '手持ちの空撮・衛星写真(ファイル)',
-    'off.img.note': 'ドローンのオルソ画像や購入した衛星写真を、GeoTIFF か KMZ(Google Earth の形式)で取り込みます。この端末に残り、圏外でも簡易地図に表示されます。Google や Esri の画像を写したものは使わないでください。',
+    'off.img.note': 'ドローンのオルソ画像や購入した衛星写真を、GeoTIFF か KMZ(Google Earth の形式)で取り込みます。この端末に残り、圏外でも地図に表示されます。Google や Esri の画像を写したものは使わないでください。',
     'off.img.add': 'ファイルを取り込む(GeoTIFF・KMZ)',
     'off.img.busy': '画像を準備しています… {done}/{total}',
-    'off.img.done': '画像を保存しました:{name}(1画素 {res})。簡易地図に表示されます。',
+    'off.img.done': '画像を保存しました:{name}(1画素 {res})。地図に表示されます。',
     'off.img.item': '{date} · 1画素 {res} · {mb} MB',
     'off.img.removeConfirm': '画像「{name}」をこの端末から消しますか?',
     'off.img.fail': 'ファイルを開けませんでした。{msg}',
@@ -493,13 +482,21 @@ const DICT = {
     'upd.deferred': '新しい版があります。記録が終わったら自動で更新します。',
 
     'map.layers': '地図の種類', 'map.locate': '現在地',
+    'map.type.sat': '衛星写真(道・境界つき)', 'map.type.plain': '衛星写真なしの地図',
+    'mapdata.title': '地図データ(自動)',
+    'mapdata.note': '高画質の衛星写真(Sentinel-2、1画素 10 m)と、道・川・localidade の境界。Monapo と Malema〜Ribáue。電波のあるときに自動で入り、そのあとは圏外でも使えます。',
+    'mapdata.retry': '今すぐダウンロード',
+    'mapdata.checking': '地図データを確かめています…',
+    'mapdata.waiting': '電波のあるときに地図データを自動で入れます',
+    'mapdata.ready': '地図は圏外でも使えます({mb} MB)',
+    'mapdata.busy': '地図をダウンロード中… {pct}%({have}/{total} MB)',
+    'mapdata.busyBg': '地図を裏でダウンロード中… {pct}%({have}/{total} MB)。アプリを閉じても続きます。',
+    'mapdata.partial': '地図:{pct}% 入っています。残りは自動で入ります。',
+    'mapdata.waitingPct': '地図:{pct}% 入っています。電波のあるときに続きを入れます。',
+    'mapdata.start': '衛星写真の地図({mb} MB)をダウンロードしています。終わるまでアプリを開いておいてください。電波が切れたら、次に開いたときに続きから。',
+    'mapdata.startBg': '衛星写真の地図({mb} MB)を裏でダウンロードしています。アプリを閉じても続きます(進み具合は通知に出ます)。',
+    'mapdata.done': '衛星写真の地図の準備ができました。圏外でも使えます。',
 
-    'map.simpleTag': '簡易地図(保存した地図)— 圏外でも動きます',
-    'map.offlineBanner': '圏外です。衛星写真が出ないことがありますが、記録は続けられます。',
-    'map.onlineBanner': '電波が戻りました。',
-    'map.useSimple': '簡易地図にする', 'map.useGoogle': '衛星写真を表示',
-    'map.tilesFail': 'Google マップを読み込めませんでした。',
-    'map.googleFail': 'いま Google マップを使えません(圏外?)。簡易地図で表示します。',
 
     'gps.wait': 'GPS…', 'gps.off': 'GPSオフ',
     'gps.waiting': 'GPSの電波を待っています。上空の開けた場所(木の下でない所)で1〜2分待ってください。',
@@ -601,9 +598,6 @@ const DICT = {
  'set.lang': '言語',
  'set.maxAcc.d': '角を打つときのGPSの誤差がこれより大きいと警告します。10 m が目安です。',
 
- 'set.mapMode.simple': '簡易地図(圏外でも動く)',
- 'set.mapType.hybrid': '航空写真+地名', 'set.mapType.satellite': '航空写真',
-    'set.mapType.roadmap': '地図', 'set.mapType.terrain': '地形',
 
     'sync.demo': '試用', 'sync.ok': '送信済み', 'sync.cache': '保存済み', 'sync.offline': '圏外',
     'sync.offlineN': '圏外 · 未送信 {n} 件', 'sync.pending': '未送信 {n} 件', 'sync.badge': '未送信',
@@ -621,7 +615,7 @@ const HELP = {
 <h3>1. Antes de ir ao campo (com rede)</h3>
 <ol><li>Abra a app uma vez com rede e entre com a conta Google. No menu deve aparecer <b>Pronto para usar sem rede</b>.</li>
 <li>No Chrome: menu ⋮ → <b>Adicionar ao ecrã principal</b>.</li>
-<li>Mova o mapa para a zona de trabalho → botão do mapa (canto direito) → <b>Guardar esta zona</b> (casas, 10 km) ou <b>Guardar zona larga</b> (raio 100 km). Repita para cada zona. Entre Malema e Ribáue guarda também a imagem de satélite.</li></ol>
+<li>O mapa de satélite de Monapo e de Malema–Ribáue (com estradas e limites) é transferido sozinho (cerca de 120 MB). Veja o estado no botão do mapa (canto direito). No Android pode fechar a app durante a transferência.</li></ol>
 <h3>2. Registar um campo</h3>
 <ol><li><b>Novo registo</b> → <b>Área</b>. A gravação começa logo.</li>
 <li>Ande pela borda e, em cada canto, toque em <b>Canto aqui</b>. A posição entra na hora. Normalmente bastam 4–10 pontos.</li>
@@ -633,7 +627,7 @@ const HELP = {
 <li>Marcou mal? <b>Desfazer</b> apaga o último ponto.</li></ul>
 <h3>4. Sem rede</h3>
 <ul><li>Os registos e as fotos ficam no telemóvel e são enviados sozinhos quando houver rede — com a app aberta.</li>
-<li>Sem rede a imagem de satélite não aparece. O <b>mapa simples</b> mostra as estradas, rios e casas do mapa guardado.</li></ul>
+<li>Depois de transferido, o mapa de satélite, as estradas e os limites funcionam sem rede.</li></ul>
 <h3>5. Partilhar</h3>
 <ul><li>Num registo: <b>Partilhar</b> (texto + fotos para o WhatsApp), <b>Google Maps</b> ou <b>KML</b> (Google Earth).</li>
 <li>Menu → <b>Exportar</b>: Google Earth, Excel, ou tudo num ZIP com fotos.</li>
@@ -643,7 +637,7 @@ const HELP = {
 <h3>1. Before going to the field (with signal)</h3>
 <ol><li>Open the app once with signal and sign in with Google. The menu should say <b>Ready to use offline</b>.</li>
 <li>In Chrome: menu ⋮ → <b>Add to Home screen</b>.</li>
-<li>Move the map to the work area → map button (right side) → <b>Save this area</b> (houses, 10 km) or <b>Save wide area</b> (100 km radius). Repeat for each area. Between Malema and Ribáue the satellite image is saved too.</li></ol>
+<li>The satellite map of Monapo and Malema–Ribáue (with roads and boundaries) downloads by itself (about 120 MB). See its state under the map button (right side). On Android you can close the app while it downloads.</li></ol>
 <h3>2. Record a field</h3>
 <ol><li><b>New record</b> → <b>Area</b>. Recording starts at once.</li>
 <li>Walk along the edge and, at each corner, tap <b>Corner here</b>. The position is added instantly. Usually 4–10 points are enough.</li>
@@ -655,7 +649,7 @@ const HELP = {
 <li>Marked the wrong place? <b>Undo</b> removes the last point.</li></ul>
 <h3>4. Without signal</h3>
 <ul><li>Records and photos stay on the phone and upload by themselves when there is signal — with the app open.</li>
-<li>Without signal the satellite image does not appear. The <b>simple map</b> shows the roads, rivers and houses of the saved map.</li></ul>
+<li>Once downloaded, the satellite map, roads and boundaries work without signal.</li></ul>
 <h3>5. Sharing</h3>
 <ul><li>In a record: <b>Share</b> (text + photos to WhatsApp), <b>Google Maps</b> or <b>KML</b> (Google Earth).</li>
 <li>Menu → <b>Export</b>: Google Earth, Excel, or everything in a ZIP with photos.</li>
@@ -665,7 +659,7 @@ const HELP = {
 <h3>1. 現場に行く前に(電波のある所で)</h3>
 <ol><li>電波のある所で一度アプリを開き、Google でログインします。メニューに「<b>圏外で使う準備ができています</b>」と出れば OK。</li>
 <li>Chrome のメニュー ⋮ →「<b>ホーム画面に追加</b>」。</li>
-<li>地図を作業する場所へ動かし、右の地図ボタン →「<b>この辺りを保存</b>」(家まで・10 km 四方)か「<b>広い範囲を保存</b>」(半径 100 km)。場所ごとにくり返します。Malema〜Ribáue 周辺では衛星写真も保存されます。</li></ol>
+<li>Monapo と Malema〜Ribáue の衛星写真の地図(道・境界つき、約 120 MB)は自動で入ります。進み具合は右の地図ボタンで見られます。Android ではダウンロード中にアプリを閉じても続きます。</li></ol>
 <h3>2. 圃場を記録する</h3>
 <ol><li>「<b>新しく記録</b>」→「<b>区画</b>」。すぐに記録が始まります。</li>
 <li>縁を歩き、角に来たら「<b>ここを角に</b>」をタップ。その場の位置がすぐ入ります。ふつうは 4〜10 点で足ります。</li>
@@ -677,7 +671,7 @@ const HELP = {
 <li>打ち間違えたら「<b>1つ戻す</b>」で最後の点を消せます。</li></ul>
 <h3>4. 圏外のとき</h3>
 <ul><li>記録と写真は端末に保存され、電波が戻ったときにアプリを開いていれば自動で送られます。</li>
-<li>圏外では衛星写真は出ません。<b>簡易地図</b>に、保存しておいた道・川・建物が出ます。</li></ul>
+<li>一度入った衛星写真・道・境界は、圏外でもそのまま見られます。</li></ul>
 <h3>5. 共有</h3>
 <ul><li>記録を開いて「<b>共有</b>」(文章と写真を WhatsApp へ)、「<b>Google マップ</b>」、「<b>KML</b>」(Google Earth 用)。</li>
 <li>メニュー →「<b>書き出し</b>」:Google Earth 用、Excel 用、写真も入った ZIP。</li>

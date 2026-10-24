@@ -3,10 +3,9 @@
  * 役割分担:
  *   lib/gps.js        位置情報の購読・「押した瞬間の位置」・画面の消灯防止
  *   lib/recorder.js   記録中の図形(下書き)の状態
- *   lib/map-google.js 電波があるときの地図(衛星写真)
- *   lib/map-simple.js 圏外用の簡易地図(方眼+保存した OpenStreetMap の道・川・建物)
- *   lib/offline-map.js 圏外用の地図の取り込みと保存(OpenStreetMap → この端末。10 km 四方と半径 100 km の2段)
- *   lib/imagery.js     圏外用の衛星写真(Sentinel-2、1画素 10 m。field-gps-imagery から取り込む)
+ *   lib/map-simple.js 地図(v2.0.0 からただ1つ。高画質の衛星写真+道・川+行政境界。電波があってもなくても同じ)
+ *   lib/imagery.js     地図データの自動取り込み(衛星写真の束・道と川・行政境界。Background Fetch)と読み出し
+ *   lib/offline-map.js 「この辺りを保存」(OpenStreetMap の建物まで。10 km 四方と半径 100 km の2段)
  *   lib/store-*.js    保存先(本番=Firestore、試用=この端末だけ)。写真もここ
  *   lib/photos.js     写真の縮小
  *   lib/export.js     KML/GeoJSON/CSV/ZIP の書き出しと読み込み(使うときだけ読み込む)
@@ -21,13 +20,13 @@ import { getSettings, saveSettings } from './lib/settings.js';
 import { catColor, defaultCategory, categoriesFor } from './lib/categories.js';
 import { preparePhoto, dataUrlToFile, MAX_PHOTOS } from './lib/photos.js';
 import { downloadArea, listAreas, deleteArea, mergeAreas, AREA_KM, WIDE_KM } from './lib/offline-map.js';
-import { loadIndex, resetMemory, syncAll, syncState, syncedBefore } from './lib/imagery.js';
+import { loadCatalog, forgetCatalog, resetMemory, ensureAll, progress as mapProgress, onProgress as onMapProgress, afterBackground, loadVectors } from './lib/imagery.js';
 import { importImagery, listImagery, deleteImagery } from './lib/user-imagery.js';
 // 書き出し・読み込みは使うときだけ読み込む(起動を軽くする)
 const loadExport = () => import('./lib/export.js');
 const loadAdmin = () => import('./lib/admin-stats.js');
 
-const VERSION = '1.7.0';
+const VERSION = '2.0.0';
 const $ = (id) => document.getElementById(id);
 const DEMO_KEY = 'fgm.demo';
 const VIEW_KEY = 'fgm.view';
@@ -39,8 +38,8 @@ let isAdminUser = false;    // allowedUsers の行に admin: true がある人(�
 let features = [];          // 保存先から来た全件(アーカイブ済みを除く)
 let storeMeta = { pending: 0, photosPending: 0, fromCache: true, error: '' };
 let mapCtl = null;
-let googleCtl = null;
 let simpleCtl = null;
+let regionVectors = { osm: [], admin: [] };   // 範囲全体の道と川・行政境界(imagery.js が自動で入れる)
 let authApi = null;
 let mainStarted = false;
 let openDetailId = null;
@@ -65,6 +64,15 @@ initLang(getSettings().lang);
 applyI18n();
 wireStatic();
 announceUpdate();
+
+// 地図データ(衛星写真・道・境界)は、ログインを待たずに取り込み始める(Kazさん 10/24「入れたら自動で全部」)
+onMapProgress(onMapDataProgress);
+setTimeout(startMapSync, 1500);
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'maps-updated') { afterBackground(); refreshMapData(); }
+  });
+}
 
 const isDemo = new URLSearchParams(location.search).has('demo') || safeGet(DEMO_KEY) === '1';
 if (isDemo) enterDemo();
@@ -179,7 +187,6 @@ async function startMain(u, mode) {
   if (m) pendingOpenId = m[1];
 
   if (!safeGet('fgm.helpSeen')) { safeSet('fgm.helpSeen', '1'); openHelp(); }
-  setTimeout(startS2Sync, 5000);
   startUpdateWatch();
 }
 
@@ -210,63 +217,32 @@ const mapHandlers = () => ({
     const prev = loadView() || {};
     safeSet(VIEW_KEY, JSON.stringify({ ...prev, ...v }));
   },
-  view: { ...(loadView() || {}), mapType: getSettings().mapType }
+  view: { ...(loadView() || {}) }
 });
 
 async function initMap() {
-  const mode = getSettings().mapMode;
-  if (mode !== 'simple' && navigator.onLine) {
-    try {
-      if (!googleCtl) {
-        const { createGoogleMap } = await import('./lib/map-google.js');
-        googleCtl = await createGoogleMap($('mapGoogle'), mapHandlers());
-        googleCtl.whenTilesFail(12000, () => {
-          if (mapCtl === googleCtl) showBanner(t('map.tilesFail'), t('map.useSimple'), useSimple);
-        });
-        // APIキーの制限などで Google が地図を拒否したら、エラー画面を見せずに簡易地図へ。
-        window.addEventListener('fgm-maps-auth-failed', () => {
-          if (mapCtl === googleCtl) { useSimple(); toast(t('map.googleFail'), 6000); }
-        });
-      }
-      useMap(googleCtl);
-      return;
-    } catch (err) {
-      console.warn('Google Maps unavailable:', err && err.message);
-      if (mode === 'google') toast(t('map.googleFail'));
-    }
-  }
-  useSimple();
-}
-
-function useSimple() {
   if (!simpleCtl) {
     simpleCtl = createSimpleMap($('mapSimple'), mapHandlers());
-    simpleCtl.setBasemap(mergeAreas(savedAreas));
-    refreshImagery();
+    simpleCtl.setSatellite(getSettings().sat !== false);
+    simpleCtl.setUserImagery(userImagery);
+    refreshBasemap();
+    refreshMapData();
   }
-  hideBanner();
   useMap(simpleCtl);
 }
 
 function useMap(ctl) {
-  const prevView = mapCtl && mapCtl.getView ? mapCtl.getView() : null;
   mapCtl = ctl;
-  $('mapGoogle').hidden = ctl.type !== 'google';
-  $('mapSimple').hidden = ctl.type !== 'simple';
-  if (ctl.type === 'simple') ctl.resize();
-  if (prevView && prevView.lat) ctl.centerOn(prevView, Math.round(prevView.zoom));
+  ctl.resize();
   ctl.setFeatures(visibleFeatures());
   ctl.setDraft(rec.state);
   ctl.setMyLocation(isFresh(lastFix(), 120000) ? lastFix() : null);
   ctl.setFeaturesClickable(!tapMode());
   if (openDetailId) ctl.highlight(openDetailId);
-  const tag = $('mapModeTag');
-  if (ctl.type === 'simple') { tag.hidden = false; tag.textContent = t('map.simpleTag'); }
-  else tag.hidden = true;
   // 初回で保存済みの表示位置が無いなら、現在地へ寄せる
   if (!loadView()) {
     const fx = lastFix();
-    if (fx) ctl.centerOn(fx, 17);
+    if (fx) ctl.centerOn(fx, 15);
   }
 }
 
@@ -281,16 +257,11 @@ function onMapTap(ll) {
 
 window.addEventListener('offline', () => {
   updateSyncChip();
-  if (mapCtl && mapCtl.type === 'google') showBanner(t('map.offlineBanner'), t('map.useSimple'), useSimple);
 });
 window.addEventListener('online', () => {
   updateSyncChip();
-  hideBanner();
-  if (mapCtl && mapCtl.type === 'simple' && getSettings().mapMode !== 'simple') {
-    showBanner(t('map.onlineBanner'), t('map.useGoogle'), () => { hideBanner(); initMap(); });
-  }
   checkForUpdate({ silent: true });
-  setTimeout(startS2Sync, 3000);
+  setTimeout(startMapSync, 3000);
 });
 
 // ================================================================ GPS 表示
@@ -1231,12 +1202,8 @@ async function renderStatus() {
   maps.querySelector('span').textContent = savedAreas.length ? t('off.map.count', { n: savedAreas.length }) : t('off.map.none');
 
   const sat = $('stSat');
-  const ss = syncState;
-  sat.className = 'status-row ' + (ss.done || syncedBefore() ? 'ok' : 'warn');
-  sat.querySelector('span').textContent = ss.done || (syncedBefore() && !ss.running)
-    ? t('s2.ready', { n: (ss.total || 9910).toLocaleString(locale()) })
-    : ss.running ? t('s2.busy', { have: ss.have.toLocaleString(locale()), total: ss.total.toLocaleString(locale()) })
-      : t('s2.waiting');
+  sat.className = 'status-row ' + (mapProgress.done ? 'ok' : 'warn');
+  sat.querySelector('span').textContent = mapDataText();
 
   const off = $('stOffline');
   const st = await askSw({ type: 'status' });
@@ -1357,22 +1324,30 @@ async function signOutOrLeave() {
 function openLayers() {
   const d = document.createElement('dialog');
   d.className = 'dlg menu-dlg';
-  const opts = [
-    ['hybrid', t('set.mapType.hybrid')], ['satellite', t('set.mapType.satellite')],
-    ['roadmap', t('set.mapType.roadmap')], ['terrain', t('set.mapType.terrain')], ['simple', t('set.mapMode.simple')]
-  ];
+  const opts = [['sat', t('map.type.sat')], ['plain', t('map.type.plain')]];
   d.innerHTML = `<h2></h2><nav class="menu-items lang-list"></nav>
-    <section class="offmap"><h3></h3><p class="muted small"></p><button type="button" class="btn-primary btn-wide tappable offmap-save"><svg class="ic"><use href="#i-download"/></svg><span></span></button><button type="button" class="btn-secondary btn-wide tappable offmap-wide"><svg class="ic"><use href="#i-download"/></svg><span></span></button><ul class="offmap-list"></ul></section>
+    <section class="offmap mapdata"><h3></h3><p class="mapdata-state"></p><div class="mapdata-bar"><i></i></div><p class="muted small mapdata-note"></p><button type="button" class="btn-secondary btn-wide tappable mapdata-go"><svg class="ic"><use href="#i-download"/></svg><span></span></button></section>
+    <section class="offmap"><h3></h3><p class="muted small"></p><button type="button" class="btn-secondary btn-wide tappable offmap-save"><svg class="ic"><use href="#i-download"/></svg><span></span></button><button type="button" class="btn-secondary btn-wide tappable offmap-wide"><svg class="ic"><use href="#i-download"/></svg><span></span></button><ul class="offmap-list"></ul></section>
     <section class="offmap offimg"><h3></h3><p class="muted small"></p><button type="button" class="btn-secondary btn-wide tappable offimg-add"><svg class="ic"><use href="#i-upload"/></svg><span></span></button><input type="file" class="offimg-file" accept=".tif,.tiff,.kmz,.kml,image/tiff,application/vnd.google-earth.kmz" hidden><ul class="offmap-list offimg-list"></ul></section>
     <div class="dlg-buttons"><button type="button" class="btn-ghost"></button></div>`;
   d.querySelector('h2').textContent = t('map.layers');
-  d.querySelector('.offmap h3').textContent = t('off.map.title');
-  d.querySelector('.offmap p').textContent = t('off.map.note', { km: AREA_KM, r: WIDE_KM / 2 });
-  d.querySelector('.offmap-save span').textContent = t('off.map.save', { km: AREA_KM });
-  d.querySelector('.offmap-wide span').textContent = t('off.map.saveWide', { r: WIDE_KM / 2 });
-  d.querySelector('.offmap-save').addEventListener('click', () => { d.close(); saveOfflineArea(false); });
-  d.querySelector('.offmap-wide').addEventListener('click', () => { d.close(); saveOfflineArea(true); });
-  renderAreaList(d.querySelector('.offmap-list'), d);
+  // 地図データ(自動で入るもの)の状態
+  const md = d.querySelector('.mapdata');
+  md.querySelector('h3').textContent = t('mapdata.title');
+  md.querySelector('.mapdata-note').textContent = t('mapdata.note');
+  md.querySelector('.mapdata-go span').textContent = t('mapdata.retry');
+  md.querySelector('.mapdata-go').addEventListener('click', () => { startMapSync(); renderMapData(md); });
+  renderMapData(md);
+  const off = onMapProgress(() => renderMapData(md));
+  // この辺りを保存(建物まで)
+  const om = d.querySelectorAll('.offmap')[1];
+  om.querySelector('h3').textContent = t('off.map.title');
+  om.querySelector('p').textContent = t('off.map.note', { km: AREA_KM, r: WIDE_KM / 2 });
+  om.querySelector('.offmap-save span').textContent = t('off.map.save', { km: AREA_KM });
+  om.querySelector('.offmap-wide span').textContent = t('off.map.saveWide', { r: WIDE_KM / 2 });
+  om.querySelector('.offmap-save').addEventListener('click', () => { d.close(); saveOfflineArea(false); });
+  om.querySelector('.offmap-wide').addEventListener('click', () => { d.close(); saveOfflineArea(true); });
+  renderAreaList(om.querySelector('.offmap-list'), d);
   d.querySelector('.offimg h3').textContent = t('off.img.title');
   d.querySelector('.offimg p').textContent = t('off.img.note');
   d.querySelector('.offimg-add span').textContent = t('off.img.add');
@@ -1385,69 +1360,95 @@ function openLayers() {
   renderImageryList(d.querySelector('.offimg-list'), d);
   d.querySelector('.dlg-buttons button').textContent = t('common.close');
   const nav = d.querySelector('nav');
+  const satOn = getSettings().sat !== false;
   opts.forEach(([k, label]) => {
     const b = document.createElement('button');
     b.type = 'button';
-    const on = (k === 'simple' && mapCtl.type === 'simple') || (mapCtl.type === 'google' && getSettings().mapType === k);
-    b.classList.toggle('on', on);
+    b.classList.toggle('on', (k === 'sat') === satOn);
     b.innerHTML = `<svg class="ic"><use href="#i-check"/></svg><span></span>`;
     b.querySelector('span').textContent = label;
-    b.addEventListener('click', async () => {
+    b.addEventListener('click', () => {
       d.close();
-      if (k === 'simple') { useSimple(); return; }
-      saveSettings({ mapType: k, mapMode: getSettings().mapMode === 'simple' ? 'auto' : getSettings().mapMode });
-      if (!googleCtl || mapCtl.type !== 'google') await initMap();
-      if (googleCtl) googleCtl.setMapType(k);
-      if (!googleCtl) toast(t('map.googleFail'));
+      saveSettings({ sat: k === 'sat' });
+      if (simpleCtl) simpleCtl.setSatellite(k === 'sat');
     });
     nav.appendChild(b);
   });
   d.querySelector('.dlg-buttons button').addEventListener('click', () => d.close());
-  d.addEventListener('close', () => d.remove());
+  d.addEventListener('close', () => { off(); d.remove(); });
   document.body.appendChild(d);
   d.showModal();
+}
+
+// ================================================================ 地図データ(衛星写真・道と川・行政境界。自動で全部入れる)
+
+const fmtMB = (b) => (b / 1048576).toLocaleString(locale(), { maximumFractionDigits: 0 });
+
+function mapDataText() {
+  const p = mapProgress;
+  if (!p.total) return navigator.onLine ? t('mapdata.checking') : t('mapdata.waiting');
+  if (p.done) return t('mapdata.ready', { mb: fmtMB(p.total) });
+  const pct = Math.floor((p.have / p.total) * 100);
+  if (p.running) {
+    const v = { pct, have: fmtMB(p.have), total: fmtMB(p.total) };
+    return p.mode === 'background' ? t('mapdata.busyBg', v) : t('mapdata.busy', v);
+  }
+  return navigator.onLine ? t('mapdata.partial', { pct }) : t('mapdata.waitingPct', { pct });
+}
+
+function renderMapData(sec) {
+  const p = mapProgress;
+  sec.querySelector('.mapdata-state').textContent = mapDataText();
+  sec.querySelector('.mapdata-bar i').style.width = `${p.total ? Math.round((p.have / p.total) * 100) : 0}%`;
+  sec.querySelector('.mapdata-bar').hidden = !p.total || p.done;
+  sec.querySelector('.mapdata-go').hidden = p.done || p.running || !navigator.onLine;
+}
+
+/** 取り込みを始める(足りない分だけ。電波が無ければ何もしない)。起動・電波が戻ったとき・手動で呼ぶ。 */
+function startMapSync() {
+  return ensureAll().then(() => refreshMapData()).catch((err) => console.warn('map data', err));
+}
+
+let mapPaintAt = 0;
+let mapToldStart = false;
+function onMapDataProgress(p) {
+  if (p.running && !mapToldStart && p.have < p.total && mainStarted) {
+    mapToldStart = true;
+    const v = { mb: fmtMB(p.total - p.have) };
+    toast(p.mode === 'background' ? t('mapdata.startBg', v) : t('mapdata.start', v), 8000);
+  }
+  // 入ったタイルが地図に出るよう、時々描き直す
+  if (Date.now() - mapPaintAt > 3000) { mapPaintAt = Date.now(); resetMemory(); refreshImageryOnly(); }
+  if (p.done && mapToldStart) { mapToldStart = false; toast(t('mapdata.done'), 6000); refreshMapData(); }
+  if ($('menuDialog').open) renderStatus();
+}
+
+async function refreshImageryOnly() {
+  if (simpleCtl) simpleCtl.setImagery(await loadCatalog());
+}
+
+/** 目録・道と川・行政境界を読み直して地図に渡す(取り込みが済んだあとなど)。 */
+async function refreshMapData() {
+  forgetCatalog();
+  resetMemory();
+  regionVectors = await loadVectors();
+  if (!simpleCtl) return;
+  simpleCtl.setImagery(await loadCatalog());
+  simpleCtl.setAdmin(regionVectors.admin);
+  refreshBasemap();
 }
 
 // ================================================================ 圏外用の地図(OpenStreetMap を端末に保存)
 
 function refreshBasemap() {
-  if (simpleCtl) simpleCtl.setBasemap(mergeAreas(savedAreas));
-  refreshImagery();
+  // 範囲全体の道・川(自動)と、「この辺りを保存」で入れた分(建物まで)を合わせて描く
+  const areas = regionVectors.osm.map((data) => ({ data })).concat(savedAreas);
+  if (simpleCtl) simpleCtl.setBasemap(mergeAreas(areas));
   if ($('menuDialog').open) renderStatus();
 }
 
-/** 衛星写真を保存した地図があるときだけ、簡易地図に衛星写真を描かせる。 */
-async function refreshImagery() {
-  if (!simpleCtl) return;
-  simpleCtl.setUserImagery(userImagery);
-  // Sentinel-2 は自動で入れるので、範囲があれば常に描く(入っていないタイルは描かれないだけ)
-  simpleCtl.setImagery(await loadIndex());
-}
-
-/**
- * 衛星写真(Sentinel-2)を、電波のあるときに裏で全部入れる(初めては約 60 MB)。
- * 起動の少しあと・電波が戻ったときに呼ぶ。全部入っていれば何もしない。
- */
-let s2LastPaint = 0;
-async function startS2Sync() {
-  if (!navigator.onLine) return syncState;
-  const first = !syncedBefore() && !syncState.have;
-  const near = (lastFix && lastFix()) || (mapCtl && mapCtl.getView && mapCtl.getView()) || null;
-  let told = false;
-  const st = await syncAll({
-    near,
-    onProgress: (have, total) => {
-      if (first && !told && have < total) { told = true; toast(t('s2.start'), 7000); }
-      // 入ったタイルが地図に出るよう、時々描き直す
-      if (Date.now() - s2LastPaint > 3000) { s2LastPaint = Date.now(); resetMemory(); refreshImagery(); }
-      if ($('menuDialog').open) renderStatus();
-    }
-  });
-  resetMemory();
-  refreshImagery();
-  if (first && st.done) toast(t('s2.done'), 6000);
-  if ($('menuDialog').open) renderStatus();
-  return st;
+function refreshImagery() {
+  if (simpleCtl) simpleCtl.setUserImagery(userImagery);
 }
 
 /** いま地図の真ん中に見えている所を中心に、地図(と範囲内なら衛星写真)を取り込む。
@@ -1460,16 +1461,10 @@ async function saveOfflineArea(wide) {
   try {
     const area = await downloadArea({ lat: v.lat, lng: v.lng }, {
       wide,
-      onProgress: (stage, done, total) => {
-        if (stage === 'sat') updateToast(t('off.map.busySat', { done, total }), 300000);
-      }
     });
     savedAreas = await listAreas();
-    resetMemory();
     refreshBasemap();
-    const n = area.n.toLocaleString(locale());
-    toast(area.sat ? t('off.map.doneSat', { name: area.name, n, sat: area.sat.toLocaleString(locale()) })
-      : t('off.map.done', { name: area.name, n }), 7000);
+    toast(t('off.map.done', { name: area.name, n: area.n.toLocaleString(locale()) }), 7000);
   } catch (err) {
     console.warn('offline map', err);
     toast(t('off.map.fail'), 7000);
@@ -1487,7 +1482,6 @@ function zoomToFit(L) {
 }
 
 function showImageryLayer(L) {
-  if (!mapCtl || mapCtl.type !== 'simple') useSimple();
   mapCtl.centerOn(L.center, zoomToFit(L));
 }
 
@@ -1553,7 +1547,6 @@ function renderAreaList(ul, dlg) {
       if (!ok) return;
       await deleteArea(a.id);
       savedAreas = await listAreas();
-      // ほかの保存地図に使っていない衛星写真も消す
       // 衛星写真は消さない(範囲全体を常に入れておくため)
       refreshBasemap();
     });
@@ -1590,22 +1583,6 @@ function updateToast(msg, ms) {
   toastTimer = setTimeout(() => { el.hidden = true; }, ms);
 }
 function hideToast() { clearTimeout(toastTimer); $('toast').hidden = true; }
-
-let bannerAction = null;
-function showBanner(text, actionLabel, action) {
-  const b = $('banner');
-  b.textContent = text;
-  if (actionLabel && action) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.textContent = actionLabel;
-    bannerAction = action;
-    btn.addEventListener('click', () => { hideBanner(); bannerAction(); });
-    b.appendChild(btn);
-  }
-  b.hidden = false;
-}
-function hideBanner() { $('banner').hidden = true; }
 
 function confirmDlg(text, yes, no) {
   return new Promise((resolve) => {
@@ -1730,12 +1707,16 @@ function wireStatic() {
 window.__fgm = {
   get features() { return features; },
   get recorder() { return rec.state; },
-  get mapType() { return mapCtl && mapCtl.type; },
   get photos() { return detailPhotos; },
   get savedAreas() { return savedAreas; },
   get userImagery() { return userImagery; },
-  get s2() { return { ...syncState }; },
-  syncS2: () => startS2Sync(),
+  get mapData() { return { ...mapProgress }; },
+  syncMapData: () => startMapSync(),
+  // 範囲全体の道と川・行政境界が読めているか(数だけ)
+  get vectors() {
+    const n = (l, k) => l.reduce((s, a) => s + ((a && a[k]) || []).length, 0);
+    return { osm: regionVectors.osm.length, admin: regionVectors.admin.length, adminLines: n(regionVectors.admin, 'lines'), adminLabels: n(regionVectors.admin, 'labels') };
+  },
   get map() { return mapCtl; },
   get version() { return VERSION; },
   stats: () => rec.stats(),

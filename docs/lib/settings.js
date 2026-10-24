@@ -4,8 +4,7 @@ const KEY = 'fgm.settings';
 export const DEFAULTS = {
   lang: '',            // '' = 端末の言語から決める(ja → 日本語、en → 英語、それ以外 → ポルトガル語)
   maxAcc: 10,          // 角を打つときの誤差(m)がこれより大きければ警告する
-  mapMode: 'auto',     // auto | google | simple
-  mapType: 'hybrid'    // Google マップの種類
+  sat: true           // 地図の下に衛星写真を描くか(v2.0.0 から Google マップは使わない)
 };
 
 let current = { ...DEFAULTS };

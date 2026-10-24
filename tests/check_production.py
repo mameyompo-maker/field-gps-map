@@ -1,4 +1,5 @@
-"""本番(GitHub Pages)の確認。試用モードで開き、Google マップが出るか・JS エラーが無いかを見る。
+"""本番(GitHub Pages)の確認。試用モードで開き、地図(自前の衛星写真)が出るか・JS エラーが無いかを見る。
+v2.0.0 から Google マップは使わない。地図データは field-gps-imagery/catalog.json から自動で取り込み始める。
 
   python tests/check_production.py [--shots]
 """
@@ -27,16 +28,16 @@ with sync_playwright() as p:
         errors = []
         page.on('pageerror', lambda e: errors.append(str(e)))
         page.goto(URL + '?demo', wait_until='load')
-        page.wait_for_function('window.__fgm && window.__fgm.mapType', timeout=30000)
+        page.wait_for_function('window.__fgm && window.__fgm.map', timeout=30000)
         page.wait_for_timeout(6000)
-        mt = page.evaluate('window.__fgm.mapType')
-        check('Google map active', mt == 'google', mt)
-        check('Google tiles rendered', page.locator('#mapGoogle img, #mapGoogle canvas').count() > 0)
-        check('no gm error overlay', page.locator('.gm-err-container').count() == 0)
+        check('canvas map shown', page.is_visible('#mapSimple canvas'))
+        check('no Google map left', page.locator('#mapGoogle').count() == 0)
+        md = page.evaluate('window.__fgm.mapData')
+        check('map data catalog found (download started or done)', md['total'] > 0 and (md['running'] or md['done']), md)
         check('no JS errors', not errors, errors[:3])
         sw = page.evaluate('navigator.serviceWorker.getRegistration().then(r => !!r)')
         check('service worker registered', sw)
-        check('version 1.7.0', page.evaluate('window.__fgm.version') == '1.7.0', page.evaluate('window.__fgm.version'))
+        check('version 2.0.0', page.evaluate('window.__fgm.version') == '2.0.0', page.evaluate('window.__fgm.version'))
         if shots:
             page.screenshot(path=f'tests/shots/prod_{label}.png')
         ctx.close()

@@ -4,11 +4,13 @@
  *      キャッシュを新しくしておく。
  *   2. Firebase SDK(gstatic)もキャッシュする。無いと圏外で起動すらできない。
  *      URL に版数が入っていて中身が変わらないので固定してよい。
- *   3. それ以外は一切キャッシュしない。特に Google マップのタイル・衛星写真
- *      (maps.googleapis.com / maps.gstatic.com / khms*.google.com)は、規約で
- *      オフライン保存が禁じられているので絶対に入れない。Firestore の通信も入れない
+ *   3. それ以外は fetch では一切キャッシュしない。Firestore の通信も入れない
  *      (入れると圏外復帰後も古いデータのままになる)。記録と写真の未送信分は
  *      Firestore SDK が端末の IndexedDB に持っていて、電波が戻ると送る。
+ *      v2.0.0 から Google マップは使わない(地図は自前の衛星写真。Google のタイルは規約で保存できない)。
+ *   4. 地図データ(衛星写真の束・道と川・行政境界)の Background Fetch の後始末(下の backgroundfetch*)。
+ *      アプリを閉じていても、ダウンロードが終わるとブラウザがこの SW を起こすので、ここで束をほどいて
+ *      タイルを Cache Storage(fgm-s2-v1)に入れる。ほどき方は lib/imagery.js の unpackPack と同じ。
  *
  * 自動更新:新しい sw.js は skipWaiting() → clients.claim() で即座に有効になり、
  *   ページ側(index.html)が controllerchange で1回だけ再読み込みする(記録中は待つ)。
@@ -18,7 +20,7 @@
  * docs/ のファイルを1つでも変えたら CACHE の版数を必ず上げること。
  * 上げ忘れると、既に開いた端末が古い版を使い続ける(field_visit_map で実際に詰まった)。
  */
-const CACHE = 'field-gps-map-v9';
+const CACHE = 'field-gps-map-v10';
 
 const FILES = [
   './',
@@ -35,7 +37,6 @@ const FILES = [
   './lib/recorder.js',
   './lib/settings.js',
   './lib/categories.js',
-  './lib/map-google.js',
   './lib/map-simple.js',
   './lib/export.js',
   './lib/zip.js',
@@ -134,4 +135,73 @@ self.addEventListener('fetch', (e) => {
       return cached || fromNetwork;
     })
   );
+});
+
+// ================================================================ 地図データの Background Fetch(lib/imagery.js が始める)
+const MAP_CACHE = 'fgm-s2-v1';
+
+/** 束('FGMP' + 見出し + 中身)をほどいて、タイルを 1 枚ずつ入れる。最後に「済み」の印を置く。 */
+async function unpackPack(packUrl, buf, cache) {
+  const base = packUrl.slice(0, packUrl.lastIndexOf('packs/'));
+  const dv = new DataView(buf);
+  if (dv.getUint32(0, false) !== 0x46474d50) throw new Error('bad pack');
+  const hl = dv.getUint32(4, true);
+  const head = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 8, hl)));
+  const start = 8 + hl;
+  for (const [key, off, len] of head.tiles) {
+    const body = new Blob([new Uint8Array(buf, start + off, len)], { type: 'image/webp' });
+    await cache.put(base + key + '.webp', new Response(body, { headers: { 'Content-Type': 'image/webp' } }));
+  }
+  await cache.put(packUrl + '.done', new Response('1'));
+}
+
+/** 届いた分を全部入れる(失敗で終わったときも、届いた分は入れる。残りは次にアプリを開いたとき)。 */
+async function storeRecords(registration) {
+  const cache = await caches.open(MAP_CACHE);
+  const records = await registration.matchAll();
+  let ok = 0;
+  for (const rec of records) {
+    try {
+      const res = await rec.responseReady;
+      if (!res || !res.ok) continue;
+      const url = rec.request.url;
+      if (url.endsWith('.bin')) await unpackPack(url, await res.arrayBuffer(), cache);
+      else await cache.put(url, res);
+      ok++;
+    } catch (err) { /* この1つは次の機会に */ }
+  }
+  return ok;
+}
+
+async function tellClients() {
+  const list = await self.clients.matchAll({ includeUncontrolled: true, type: 'window' });
+  list.forEach((c) => c.postMessage({ type: 'maps-updated' }));
+}
+
+const DONE_TITLE = {
+  ja: '地図の準備ができました(圏外でも使えます)',
+  en: 'Map ready (works without signal)',
+  pt: 'Mapa pronto (funciona sem rede)'
+};
+
+self.addEventListener('backgroundfetchsuccess', (e) => {
+  e.waitUntil((async () => {
+    await storeRecords(e.registration);
+    const lang = ((self.navigator && self.navigator.language) || 'pt').slice(0, 2);
+    try { await e.updateUI({ title: DONE_TITLE[lang] || DONE_TITLE.pt }); } catch { /* 古いブラウザ */ }
+    await tellClients();
+  })());
+});
+
+self.addEventListener('backgroundfetchfail', (e) => {
+  e.waitUntil(storeRecords(e.registration).then(tellClients));
+});
+
+self.addEventListener('backgroundfetchabort', (e) => {
+  e.waitUntil(tellClients());
+});
+
+// 通知欄の「ダウンロード中」を押したらアプリを開く
+self.addEventListener('backgroundfetchclick', (e) => {
+  e.waitUntil(self.clients.openWindow(new URL('./', self.location).href));
 });

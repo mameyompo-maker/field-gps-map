@@ -1,10 +1,9 @@
-/* field_gps_map — 圏外用の簡易地図(canvas に自前で描く)。
+/* field_gps_map — 地図(canvas に自前で描く)。v2.0.0 からはこれがただ1つの地図(Google マップは使わない)。
  *
- * 衛星写真は無い。方眼(縮尺つき)の上に、保存しておいた OpenStreetMap の地図(道・川・池・建物・地名。
- * lib/offline-map.js)、登録済みの図形・記録中の図形・現在地を描く。
- * Google の地図はオフライン保存が規約で禁じられているため、圏外ではこれで
- * 「自分がどこにいて、どこまで記録したか」を確かめる。
- * map-google.js と同じ関数の組を返すので、app.js はどちらかを意識しない。
+ * 下から順に:高画質の衛星写真(Sentinel-2。lib/imagery.js、範囲は目録の全部)→ 手持ちの画像ファイル →
+ * 道・川・池・建物・地名(OpenStreetMap。範囲全体の分と「この辺りを保存」の分)→ 行政境界と名前
+ * (郡・行政ポスト・localidade。OCHA/INE COD-AB)→ 登録済みの図形 → 記録中の図形 → 現在地。
+ * 電波があってもなくても同じ地図。入っていないタイルは、電波があればその場で取りに行く。
  *
  * 座標は Web メルカトルではなく、表示の中心を基準にした平面(東西 m・南北 m)。
  * 圃場の大きさ(数km以内)なら歪みは無視できる。
@@ -12,6 +11,7 @@
 import { catColor } from './categories.js';
 import { makeLocalProjection, pointInPolygon, distance, centroid } from './geo.js';
 import { getTile, ATTRIBUTION as SAT_CREDIT } from './imagery.js';
+const ADMIN_CREDIT = 'Limites: OCHA/INE COD-AB';
 import { paintUserImagery } from './user-imagery.js';
 
 export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMove, view } = {}) {
@@ -24,7 +24,9 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
   let mpp = view && view.zoom ? 156543.03 * Math.cos((center.lat * Math.PI) / 180) / 2 ** view.zoom : 2;
   let features = [];
   let basemap = null;       // 保存した OpenStreetMap の地図(offline-map.js の mergeAreas の形)
-  let imagery = null;       // 保存した衛星写真の範囲(imagery.js の index.json)。タイルは getTile で受け取る
+  let regions = [];         // 衛星写真の範囲(imagery.js の目録)。タイルは getTile で受け取る
+  let showSat = true;       // 衛星写真を描くか(地図ボタンで切り替え)
+  let admin = [];           // 行政境界 [{lines, labels}](lines には b = 範囲 を足しておく)
   let sat = false;          // いま衛星写真を描いたか
   let userLayers = [];      // 取り込んだ写真ファイル(user-imagery.js)
   let userDrawn = [];
@@ -69,8 +71,10 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = '#f4f1e8';
     ctx.fillRect(0, 0, W, H);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
     const P = proj();
-    const s2 = paintImagery();
+    const s2 = showSat ? paintImagery() : false;
     sat = s2;
     userDrawn = userLayers.length ? paintUserImagery(ctx, userLayers, { center, mpp, W, H, dpr }, draw) : [];
     if (userDrawn.length) sat = true;
@@ -87,6 +91,7 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     ctx.stroke();
 
     if (basemap) paintBasemap();
+    if (admin.length) paintAdmin();
 
     // 登録済みの図形
     const showLabels = mpp < 3;
@@ -177,6 +182,7 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     const credits = [];
     if (basemap) credits.push('© OpenStreetMap contributors');
     if (s2) credits.push(SAT_CREDIT);
+    if (admin.length) credits.push(ADMIN_CREDIT);
     userDrawn.slice(0, 2).forEach((n) => credits.push(n));
     if (credits.length) {
       ctx.font = '500 10px system-ui, sans-serif'; ctx.textAlign = 'left';
@@ -191,7 +197,12 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
   // ---------------------------------------------------------------- 保存した衛星写真(Sentinel-2)
   // 画面の縮尺に近いズームのタイルを描く。まだ無いタイルは、1つ上(粗い)のタイルを拡大して埋める。
   function paintImagery() {
-    if (!imagery) return false;
+    let drew = false;
+    regions.forEach((r) => { if (paintRegion(r)) drew = true; });
+    return drew;
+  }
+
+  function paintRegion(imagery) {
     const lat0 = center.lat, lng0 = center.lng;
     const cosl = Math.cos((lat0 * Math.PI) / 180);
     const half = (Math.max(W, H) / 2 + 20) * mpp;
@@ -200,6 +211,7 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     const S = Math.max(lat0 - dLat, is), N = Math.min(lat0 + dLat, inn);
     const Wl = Math.max(lng0 - dLng, iw), E = Math.min(lng0 + dLng, ie);
     if (S >= N || Wl >= E) return false;
+    // 画面の細かさに合うズーム。最も細かいズームより寄ったら、そのタイルをなめらかに拡大する。
     const z = Math.max(imagery.minzoom, Math.min(imagery.maxzoom, Math.round(zoomLevel() + 0.3)));
     const n = 2 ** z;
     const tx = (lng) => ((lng + 180) / 360) * n;
@@ -213,11 +225,14 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     let drew = false;
     for (let x = x0; x <= x1; x++) {
       for (let y = y0; y <= y1; y++) {
-        const L = Math.floor(W / 2 + (lngOf(x, z) - lng0) * kx), Rr = Math.ceil(W / 2 + (lngOf(x + 1, z) - lng0) * kx);
-        const T = Math.floor(H / 2 - (latOf(y, z) - lat0) * ky), B = Math.ceil(H / 2 - (latOf(y + 1, z) - lat0) * ky);
+        // 端は四捨五入で隣のタイルとぴったり接する(floor/ceil で 1px 重ねると、タイルが 257px に引き伸ばされて
+        // 下端・右端で中身が約 1px ずれ、継ぎ目の線に見えた。10/24)
+        const L = Math.round(W / 2 + (lngOf(x, z) - lng0) * kx), Rr = Math.round(W / 2 + (lngOf(x + 1, z) - lng0) * kx);
+        const T = Math.round(H / 2 - (latOf(y, z) - lat0) * ky), B = Math.round(H / 2 - (latOf(y + 1, z) - lat0) * ky);
+        // まだ無いタイルは、粗いズームのタイルを拡大して埋める
         for (let d = 0; z - d >= imagery.minzoom; d++) {
           const pz = z - d, px = x >> d, py = y >> d;
-          const bmp = getTile(`${pz}/${px}/${py}`, draw);
+          const bmp = getTile(imagery.base, `${pz}/${px}/${py}`, draw);
           if (!bmp) continue;
           const size = 256 / 2 ** d;
           ctx.drawImage(bmp, (x - (px << d)) * size, (y - (py << d)) * size, size, size, L, T, Rr - L, B - T);
@@ -227,6 +242,51 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
       }
     }
     return drew;
+  }
+
+  // ---------------------------------------------------------------- 行政境界(郡・行政ポスト・localidade)と名前
+  // 衛星写真の上では白い線に暗い縁取り(Monapo の印刷用地図と同じ)。名前は寄るほど細かい段まで出す。
+  function paintAdmin() {
+    const R = 6378137;
+    const ky = (Math.PI / 180) * R / mpp;
+    const kx = ky * Math.cos((center.lat * Math.PI) / 180);
+    const cx = W / 2, cy = H / 2, lat0 = center.lat, lng0 = center.lng;
+    const half = (Math.max(W, H) / 2 + 40) * mpp;
+    const dLat = half / 111320, dLng = half / (111320 * Math.cos((lat0 * Math.PI) / 180));
+    const S = lat0 - dLat, N = lat0 + dLat, Wl = lng0 - dLng, E = lng0 + dLng;
+    const zl = zoomLevel();
+    const fg = sat ? '#ffffff' : '#7b4fa8';
+    const halo = sat ? 'rgba(0,0,0,.55)' : 'rgba(255,255,255,.8)';
+    const style = { 2: { w: 2.6, dash: [] }, 3: { w: 1.8, dash: [10, 5] }, 4: { w: 1.2, dash: [5, 4] } };
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    [4, 3, 2].forEach((lv) => {
+      if (lv === 4 && zl < 9.5) return;
+      ctx.beginPath();
+      admin.forEach((a) => a.lines.forEach((it) => {
+        if (it.l !== lv || it.b[0] > N || it.b[2] < S || it.b[1] > E || it.b[3] < Wl) return;
+        const c = it.c;
+        ctx.moveTo(cx + (c[1] - lng0) * kx, cy - (c[0] - lat0) * ky);
+        for (let i = 2; i < c.length; i += 2) ctx.lineTo(cx + (c[i + 1] - lng0) * kx, cy - (c[i] - lat0) * ky);
+      }));
+      const st = style[lv];
+      ctx.setLineDash([]); ctx.lineWidth = st.w + 2; ctx.strokeStyle = halo; ctx.stroke();
+      ctx.setLineDash(st.dash); ctx.lineWidth = st.w; ctx.strokeStyle = fg; ctx.stroke();
+    });
+    ctx.setLineDash([]);
+    // 名前:郡はズーム 7.5〜11、行政ポストは 9.5〜13.5、localidade は 10.5 から
+    const show = { 2: [7.5, 11], 3: [9.5, 13.5], 4: [10.5, 99] };
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    admin.forEach((a) => a.labels.forEach((p) => {
+      const [z0, z1] = show[p.l];
+      if (zl < z0 || zl > z1) return;
+      if (p.lat < S || p.lat > N || p.lng < Wl || p.lng > E) return;
+      const x = cx + (p.lng - lng0) * kx, y = cy - (p.lat - lat0) * ky;
+      const big = p.l === 2 ? 16 : p.l === 3 ? 14 : 13;
+      ctx.font = `${p.l === 4 ? 700 : 800} ${big}px system-ui, sans-serif`;
+      const txt = p.l === 4 ? p.n : p.n.toUpperCase();
+      ctx.lineWidth = 4; ctx.strokeStyle = sat ? 'rgba(0,0,0,.6)' : 'rgba(255,255,255,.95)'; ctx.strokeText(txt, x, y);
+      ctx.fillStyle = sat ? '#ffffff' : '#4b2c6b'; ctx.fillText(txt, x, y);
+    }));
   }
 
   // ---------------------------------------------------------------- 保存した OpenStreetMap の地図
@@ -257,7 +317,7 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     [[1, 4], [2, 1.6]].forEach(([k, w]) => {
       ctx.beginPath();
       basemap.rivers.forEach((it) => { if (it.k === k && inView(it.b)) path(it.c, false); });
-      ctx.lineWidth = Math.max(w, k === 1 ? 12 / mpp : 3 / mpp); ctx.strokeStyle = '#6fa8dc'; ctx.stroke();
+      ctx.lineWidth = Math.max(w, k === 1 ? 12 / mpp : 3 / mpp); ctx.strokeStyle = sat ? '#4fb3ff' : '#6fa8dc'; ctx.stroke();
     });
 
     // 建物(寄って見たときだけ。遠くからは点の集まりになって見づらい)
@@ -274,7 +334,14 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     }
 
     // 道(太い道ほど後に描いて上に重ねる)。小道は寄ったときだけ。
-    const roadStyle = {
+    // 衛星写真の上では、主要道路は黄色・ほかの道は白に暗い縁取り(Monapo の印刷用地図と同じ配色)
+    const roadStyle = sat ? {
+      1: { w: 3.5, fill: '#ffd54a', edge: 'rgba(40,25,0,.7)' },
+      2: { w: 2.6, fill: '#fff3c4', edge: 'rgba(0,0,0,.5)' },
+      3: { w: 1.8, fill: '#ffffff', edge: 'rgba(0,0,0,.45)' },
+      4: { w: 1.3, fill: 'rgba(255,255,255,.85)', dash: [6, 4] },
+      5: { w: 1, fill: 'rgba(255,255,255,.75)', dash: [2, 4] }
+    } : {
       1: { w: 6, fill: '#f7c86a', edge: '#d39a2b' },
       2: { w: 5, fill: '#ffffff', edge: '#c9b99a' },
       3: { w: 3.5, fill: '#ffffff', edge: '#c9b99a' },
@@ -302,8 +369,8 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
       const x = cx + (p.lng - lng0) * kx, y = cy - (p.lat - lat0) * ky;
       const big = p.t === 'city' || p.t === 'town';
       ctx.font = `${big ? 800 : 700} ${big ? 15 : 12.5}px system-ui, sans-serif`;
-      ctx.lineWidth = 3.5; ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.strokeText(p.n, x, y);
-      ctx.fillStyle = '#4a3b2a'; ctx.fillText(p.n, x, y);
+      ctx.lineWidth = 3.5; ctx.strokeStyle = sat ? 'rgba(0,0,0,.6)' : 'rgba(255,255,255,.95)'; ctx.strokeText(p.n, x, y);
+      ctx.fillStyle = sat ? '#fff8e1' : '#4a3b2a'; ctx.fillText(p.n, x, y);
     });
   }
 
@@ -411,7 +478,22 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     type: 'simple',
     setFeatures(list) { features = list; draw(); },
     setBasemap(m) { basemap = m; draw(); },
-    setImagery(index) { imagery = index; draw(); },
+    setImagery(cat) { regions = (cat && cat.regions) || []; draw(); },
+    setSatellite(on) { showSat = !!on; draw(); },
+    setAdmin(list) {
+      admin = (list || []).map((a) => ({
+        labels: a.labels || [],
+        lines: (a.lines || []).map((it) => {
+          let s = 90, w = 180, n = -90, e = -180;
+          for (let i = 0; i < it.c.length; i += 2) {
+            const la = it.c[i], lo = it.c[i + 1];
+            if (la < s) s = la; if (la > n) n = la; if (lo < w) w = lo; if (lo > e) e = lo;
+          }
+          return { l: it.l, c: it.c, b: [s, w, n, e] };
+        })
+      }));
+      draw();
+    },
     setUserImagery(list) { userLayers = list || []; draw(); },
     setDraft(d) { draft = d ? { kind: d.kind, vertices: d.vertices.slice() } : null; draw(); },
     setMyLocation(fix) { me = fix; draw(); },
@@ -439,8 +521,6 @@ export function createSimpleMap(wrapper, { onTap, onFeatureTap, onIdle, onUserMo
     },
     zoomBy(d) { zoomAt(d > 0 ? 2 : 0.5, W / 2, H / 2); emitIdle(); },
     getView() { return { lat: center.lat, lng: center.lng, zoom: zoomLevel() }; },
-    setMapType() { /* 簡易地図には種類が無い */ },
-    whenTilesFail() { /* 簡易地図はタイルを使わない */ },
     resize
   };
 }

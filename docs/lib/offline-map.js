@@ -17,9 +17,8 @@
  *   - この辺り:一辺 10 km、建物まで。Malema の町で約 1.2 万件・答え 7.6 MB。
  *   - 広い範囲:一辺 200 km(半径 100 km)、道・川・池・集落名だけ。建物は 200 km 四方で約 33 万件あり、
  *     窓口にも端末にも重すぎるので入れない。道 6,093・川 516 で答え約 15 MB(10/22 実測)。
- *   どちらも、範囲に衛星写真(imagery.js)があれば一緒に保存する。
+ *   v2.0.0 から、衛星写真と範囲全体の道・川・行政境界は imagery.js が自動で入れる。ここは「この辺り」の建物などを足す用。
  */
-import { loadIndex, tilesFor, saveTiles } from './imagery.js';
 const DB_NAME = 'fgm-offline-map';
 const STORE = 'areas';
 const ENDPOINTS = [
@@ -29,7 +28,6 @@ const ENDPOINTS = [
 ];
 export const AREA_KM = 10;   // 「この辺り」の四角の一辺(km)
 export const WIDE_KM = 200;  // 「広い範囲」の四角の一辺(km)= 半径 100 km
-const SAT_ZOOM = { near: [10, 14], wide: [8, 12] };   // 一緒に保存する衛星写真のズーム
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -127,14 +125,8 @@ function areaName(d, c) {
   return best ? best.n : `${c.lat.toFixed(3)}, ${c.lng.toFixed(3)}`;
 }
 
-/** 保存した地図に使う衛星写真のタイル(z/x/y)。 */
-export function satKeys(area, index) {
-  const [z0, z1] = SAT_ZOOM[area.kind === 'wide' ? 'wide' : 'near'];
-  return tilesFor(area.bbox, z0, z1, index);
-}
-
 /** 地図を取り込んで保存する。wide なら一辺 WIDE_KM(建物なし)、そうでなければ一辺 AREA_KM。
- *  onProgress(段階, 済み, 全部):段階は 'osm' と 'sat'。 */
+ *  onProgress(段階, 済み, 全部):段階は 'osm'。 */
 export async function downloadArea(center, { wide = false, onProgress } = {}) {
   const bbox = bboxAround(center, wide ? WIDE_KM : AREA_KM);
   const body = 'data=' + encodeURIComponent(query(bbox, wide));
@@ -163,18 +155,8 @@ export async function downloadArea(center, { wide = false, onProgress } = {}) {
     bbox,
     savedAt: Date.now(),
     n: count(data),
-    sat: 0,
     data
   };
-  // 衛星写真(範囲の中なら)。失敗しても道・川の地図は保存する。
-  try {
-    const index = await loadIndex();
-    const keys = satKeys(area, index);
-    if (keys.length) {
-      if (onProgress) onProgress('sat', 0, keys.length);
-      area.sat = await saveTiles(keys, (d, t) => onProgress && onProgress('sat', d, t));
-    }
-  } catch (err) { console.warn('imagery', err); }
   await tx('readwrite', (st) => st.put(area));
   return area;
 }

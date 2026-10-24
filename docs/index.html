@@ -10,8 +10,6 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<link rel="preconnect" href="https://maps.googleapis.com">
-<link rel="preconnect" href="https://maps.gstatic.com">
 <link rel="preconnect" href="https://firestore.googleapis.com">
 <link rel="stylesheet" href="styles.css">
 <script src="config.js"></script>
@@ -90,8 +88,7 @@
 
 <!-- ============================== メインの画面 ============================== -->
 <main id="mainScreen" hidden>
-  <div id="mapGoogle" class="map-layer"></div>
-  <div id="mapSimple" class="map-layer" hidden><canvas id="simpleCanvas"></canvas></div>
+  <div id="mapSimple" class="map-layer"><canvas id="simpleCanvas"></canvas></div>
 
   <header class="topbar">
     <button id="btnMenu" class="glass-btn icon-only tappable" type="button" data-i18n-title="menu.open"><svg class="ic"><use href="#i-menu"/></svg><span id="updDot" class="upd-dot" hidden></span></button>
@@ -101,16 +98,12 @@
     <button id="syncChip" class="glass-btn chip tappable" type="button" hidden><svg class="ic"><use id="syncIcon" href="#i-cloud-ok"/></svg><span id="syncText"></span></button>
   </header>
 
-  <div id="banner" class="banner" hidden></div>
-
   <div class="map-tools">
     <button id="btnLayers" class="round-btn tappable" type="button" data-i18n-title="map.layers"><svg class="ic"><use href="#i-layers"/></svg></button>
     <button id="btnZoomIn" class="round-btn tappable" type="button" aria-label="+"><svg class="ic"><use href="#i-plus"/></svg></button>
     <button id="btnZoomOut" class="round-btn tappable" type="button" aria-label="-"><svg class="ic"><use href="#i-minus"/></svg></button>
     <button id="btnLocate" class="round-btn tappable" type="button" data-i18n-title="map.locate"><svg class="ic"><use href="#i-locate"/></svg></button>
   </div>
-
-  <div id="mapModeTag" class="map-mode-tag" hidden></div>
 
   <button id="fabNew" class="fab tappable" type="button"><svg class="ic"><use href="#i-plus"/></svg><span data-i18n="new.button"></span></button>
 

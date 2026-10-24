@@ -1,4 +1,22 @@
-# HANDOVER — field_gps_map(2026-10-22)
+# HANDOVER — field_gps_map(2026-10-24 更新)
+
+## 🆕 v2.0.0(2026-10-24、作業中)
+
+Kazさん(10/24)「この最も詳細なもの(= Monapo の印刷用地図に使った Sentinel-2 の 16 ビット雲なし合成)を地図のデフォルトに。
+Google はいらない。アプリを入れたら自動で全部ダウンロードしてオフラインで使えるように。ダウンロードはバックグラウンドでも続くように」。
+「UI は時間をかけて変えてよい。エージェントもたくさん動かしてよい」。
+
+- Google マップを外した(`docs/lib/map-google.js` は Delete_candidate へ移動、config の Maps キーも外した)。地図は map-simple.js だけ。
+- 地図データは field_gps_imagery の目録 `catalog.json`(範囲:monapo・malema)。範囲ごとに束(packs/*.bin)・osm.json・admin.json。
+  作り方は README「地図(v2.0.0)」。ツール:tools/hq_tiles.py・osm_region.py・admin_region.py・make_catalog.py。
+- 自動の取り込み:docs/lib/imagery.js の ensureAll()。Background Fetch(sw.js の backgroundfetchsuccess がほどく)→ だめならページ内。
+- 地図ボタン:衛星写真/衛星写真なしの切り替え+「地図データ(自動)」の状態とバー+この辺りを保存+ファイル取り込み。
+- Malema〜Ribáue の高画質版はエージェントが作成中(tools/s2_hq/、中間ファイルは %TEMP%\malema_s2_hq\、出力 field_gps_imagery/docs/malema/)。
+  できるまで目録は旧 s2/ を指す。できたら make_catalog.py を実行して imagery を push(アプリの変更は不要)。
+- e2e テストの v2 対応もエージェントに依頼中。
+- 残り:e2e を通す → imagery と app を push(app は push = 即本番)→ check_production → Kazさんに実機(Android)で確認してもらう。
+
+
 
 ## 目的
 
