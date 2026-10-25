@@ -1,6 +1,6 @@
 # HANDOVER — field_gps_map(2026-10-24 更新)
 
-## 🆕 v2.0.0(2026-10-24、作業中)
+## 🆕 v2.0.0(2026-10-24 公開。app e957986・imagery 82f5989。e2e 192/192、check_production ALL OK)
 
 Kazさん(10/24)「この最も詳細なもの(= Monapo の印刷用地図に使った Sentinel-2 の 16 ビット雲なし合成)を地図のデフォルトに。
 Google はいらない。アプリを入れたら自動で全部ダウンロードしてオフラインで使えるように。ダウンロードはバックグラウンドでも続くように」。
@@ -11,10 +11,12 @@ Google はいらない。アプリを入れたら自動で全部ダウンロー�
   作り方は README「地図(v2.0.0)」。ツール:tools/hq_tiles.py・osm_region.py・admin_region.py・make_catalog.py。
 - 自動の取り込み:docs/lib/imagery.js の ensureAll()。Background Fetch(sw.js の backgroundfetchsuccess がほどく)→ だめならページ内。
 - 地図ボタン:衛星写真/衛星写真なしの切り替え+「地図データ(自動)」の状態とバー+この辺りを保存+ファイル取り込み。
-- Malema〜Ribáue の高画質版はエージェントが作成中(tools/s2_hq/、中間ファイルは %TEMP%\malema_s2_hq\、出力 field_gps_imagery/docs/malema/)。
-  できるまで目録は旧 s2/ を指す。できたら make_catalog.py を実行して imagery を push(アプリの変更は不要)。
-- e2e テストの v2 対応もエージェントに依頼中。
-- 残り:e2e を通す → imagery と app を push(app は push = 即本番)→ check_production → Kazさんに実機(Android)で確認してもらう。
+- Malema〜Ribáue の高画質版:tools/s2_hq/(Monapo の取得スクリプトを範囲指定できるようにし、MGRS タイルごとの色合わせを足したもの)。
+- e2e は v2 対応済み(本番と同じ2つの配信口、ページ内・Background Fetch・圏外・続きから・切り替え)。
+- タイルの継ぎ目:描き先を floor/ceil で 1px 重ねると 257px に伸びて中身がずれ、線に見えた → Math.round で接するように直した。
+- 10/25 Malema〜Ribáue 高画質版を公開(9,910 枚・26 束・210.8 MB、imagery 390f78a2)。地図データ全体は約 270 MB。
+  中間ファイル約 25 GB が %TEMP%\malema_s2_hq\ に残る(削除禁止ルールのため。不要なら Kazさんが消す)。
+- 残り:Kazさんに Android 実機で「閉じてもダウンロードが続くか・通知が出るか」を見てもらう(台帳)。iPhone は未確認。
 
 
 
