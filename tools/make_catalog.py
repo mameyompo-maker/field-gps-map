@@ -6,7 +6,8 @@
 すべて端末に入れる。範囲を足す・作り直すときは、ファイルを置いてからこれを実行して push するだけ(アプリの変更は不要)。
 
 REGIONS の tiles は衛星写真のフォルダ(index.json と packs/ がある所)。
-Malema – Ribáue は、高画質版(malema/)ができるまでは前の画像(s2/)を使う。
+2026-10-27(Kazさん「Monapo 地区だけでいい。西側は全部いらない」)から Monapo だけ。
+Malema – Ribáue(malema/・s2/)は目録とリポジトリから外した。アプリは目録に無い範囲を端末から消す(imagery.js pruneStale)。
 """
 import hashlib
 import json
@@ -15,8 +16,6 @@ from pathlib import Path
 
 REGIONS = [
     {'id': 'monapo', 'name': 'Monapo', 'tiles': 'monapo/', 'osm': 'monapo/osm.json', 'admin': 'monapo/admin.json'},
-    {'id': 'malema', 'name': 'Malema – Ribáue', 'tiles': 'malema/', 'fallback_tiles': 's2/',
-     'osm': 'malema/osm.json', 'admin': 'malema/admin.json'},
 ]
 
 
@@ -31,8 +30,6 @@ def main():
     out = []
     for r in REGIONS:
         tiles = r['tiles']
-        if not (root / tiles / 'index.json').exists():
-            tiles = r['fallback_tiles']
         idx = json.load(open(root / tiles / 'index.json', encoding='utf-8'))
         out.append({
             'id': r['id'], 'name': r['name'], 'tiles': tiles,

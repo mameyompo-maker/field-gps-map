@@ -20,7 +20,7 @@
  * docs/ のファイルを1つでも変えたら CACHE の版数を必ず上げること。
  * 上げ忘れると、既に開いた端末が古い版を使い続ける(field_visit_map で実際に詰まった)。
  */
-const CACHE = 'field-gps-map-v10';
+const CACHE = 'field-gps-map-v11';
 
 const FILES = [
   './',

@@ -4,7 +4,7 @@
  *   ダウンロードして圏外でも使えるように。ダウンロードはバックグラウンドでも続くように」):
  *   - 地図は Sentinel-2 の高画質版(16 ビットの雲なし合成を色調整したもの。1画素 10 m)だけ。Google は使わない。
  *     Google・Mapbox・Esri の衛星写真は規約上この Web アプリに保存できない。Sentinel-2 は無料・商用可(出典表示)。
- *   - 範囲は目録 field-gps-imagery/catalog.json に載っているもの全部(今は Monapo 郡と Malema〜Ribáue)。
+ *   - 範囲は目録 field-gps-imagery/catalog.json に載っているもの全部(10/27 から Monapo 郡だけ。目録から外れた範囲は pruneStale で端末から消す)。
  *     範囲ごとに、衛星写真の「束」(約 8 MB に数百枚のタイル)・道と川(osm.json)・行政境界(admin.json)。
  *     作り方は tools/hq_tiles.py・osm_region.py・admin_region.py・make_catalog.py。
  *   - 取り込み:アプリを開くと、電波があれば自動で始める(押す物はない)。
@@ -82,6 +82,30 @@ export async function plan(cat) {
   return { all, missing, totalBytes: sum(all), haveBytes: sum(all) - sum(missing) };
 }
 
+/**
+ * 目録から外れた範囲のデータを端末から消す(v2.0.1。Kazさん 10/27「Monapo だけでいい。西側は全部いらない」で
+ * Malema〜Ribáue を目録から外したとき、もう入っている約 210 MB を残さないため)。
+ * 残すのは、目録・今の範囲のタイルと束の印・今の版の osm.json / admin.json だけ。古い版の JSON も消える。
+ */
+export async function pruneStale(cat) {
+  try {
+    const c = await caches.open(CACHE_NAME);
+    const keep = new Set([CATALOG_URL]);
+    cat.regions.forEach((r) => { keep.add(r.osmUrl); keep.add(r.adminUrl); });
+    const bases = cat.regions.map((r) => r.base);
+    let n = 0;
+    for (const req of await c.keys()) {
+      const u = req.url;
+      if (!u.startsWith(IMG_ROOT) || keep.has(u)) continue;
+      if (bases.some((b) => u.startsWith(b)) && !u.endsWith('.json') && !u.includes('.json?')) continue;
+      await c.delete(req);
+      n++;
+    }
+    if (n) resetMemory();
+    return n;
+  } catch { return 0; }
+}
+
 /** 束をほどいて、タイルを 1 枚ずつ Cache Storage に入れる(sw.js の unpackPack と同じ)。 */
 export async function unpackPack(packUrl, buf, cache) {
   const base = packUrl.slice(0, packUrl.lastIndexOf('packs/'));
@@ -113,7 +137,9 @@ let syncP = null;
 export function ensureAll() {
   if (syncP) return syncP;
   syncP = (async () => {
-    const pl = await plan();
+    const cat = await loadCatalog();
+    if (cat) await pruneStale(cat);
+    const pl = await plan(cat);
     if (!pl) return progress;
     Object.assign(progress, { total: pl.totalBytes, have: pl.haveBytes, done: !pl.missing.length, error: '' });
     emit();

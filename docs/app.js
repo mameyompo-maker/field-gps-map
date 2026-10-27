@@ -26,7 +26,7 @@ import { importImagery, listImagery, deleteImagery } from './lib/user-imagery.js
 const loadExport = () => import('./lib/export.js');
 const loadAdmin = () => import('./lib/admin-stats.js');
 
-const VERSION = '2.0.0';
+const VERSION = '2.0.1';
 const $ = (id) => document.getElementById(id);
 const DEMO_KEY = 'fgm.demo';
 const VIEW_KEY = 'fgm.view';

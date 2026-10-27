@@ -45,7 +45,7 @@ const DICT = {
     'off.lastSync': 'Última ligação ao servidor: {time}', 'off.never': 'Ainda sem ligação ao servidor',
 
     'off.map.title': 'Mapa para usar sem rede',
-    'off.map.note': 'Opcional: guarda no telemóvel mais detalhes à volta do centro do mapa (OpenStreetMap). «Esta zona»: quadrado de {km} km com casas. «Zona larga»: raio de {r} km, estradas, rios e povoações (útil fora de Monapo e Malema–Ribáue).',
+    'off.map.note': 'Opcional: guarda no telemóvel mais detalhes à volta do centro do mapa (OpenStreetMap). «Esta zona»: quadrado de {km} km com casas. «Zona larga»: raio de {r} km, estradas, rios e povoações (útil fora do distrito de Monapo).',
     'off.map.save': 'Guardar esta zona ({km} km, com casas)',
     'off.map.busy': 'A descarregar o mapa… (pode levar 1 a 3 minutos)',
     'off.map.done': 'Mapa guardado: {name} ({n} elementos). Já pode usar sem rede.',
@@ -84,7 +84,7 @@ const DICT = {
     'map.layers': 'Tipo de mapa', 'map.locate': 'A minha posição',
     'map.type.sat': 'Satélite (com estradas e limites)', 'map.type.plain': 'Mapa sem satélite',
     'mapdata.title': 'Dados do mapa (automático)',
-    'mapdata.note': 'Imagem de satélite de alta qualidade (Sentinel-2, cada ponto = 10 m), estradas, rios e limites das localidades — Monapo e Malema–Ribáue. São transferidos sozinhos quando há rede e depois funcionam sem rede.',
+    'mapdata.note': 'Imagem de satélite de alta qualidade (Sentinel-2, cada ponto = 10 m), estradas, rios e limites das localidades — distrito de Monapo. São transferidos sozinhos quando há rede e depois funcionam sem rede.',
     'mapdata.retry': 'Transferir agora',
     'mapdata.checking': 'A verificar os dados do mapa…',
     'mapdata.waiting': 'Os dados do mapa serão transferidos quando houver rede',
@@ -245,7 +245,7 @@ const DICT = {
     'off.lastSync': 'Last contact with the server: {time}', 'off.never': 'No contact with the server yet',
 
     'off.map.title': 'Map for use without signal',
-    'off.map.note': 'Optional: saves more detail around the map centre on the phone (OpenStreetMap). “This area”: a {km} km square, with houses. “Wide area”: {r} km radius, roads, rivers and villages (useful outside Monapo and Malema–Ribáue).',
+    'off.map.note': 'Optional: saves more detail around the map centre on the phone (OpenStreetMap). “This area”: a {km} km square, with houses. “Wide area”: {r} km radius, roads, rivers and villages (useful outside Monapo district).',
     'off.map.save': 'Save this area ({km} km, with houses)',
     'off.map.busy': 'Downloading the map… (may take 1–3 minutes)',
     'off.map.done': 'Map saved: {name} ({n} items). Ready to use without signal.',
@@ -284,7 +284,7 @@ const DICT = {
     'map.layers': 'Map type', 'map.locate': 'My location',
     'map.type.sat': 'Satellite (with roads and boundaries)', 'map.type.plain': 'Map without satellite',
     'mapdata.title': 'Map data (automatic)',
-    'mapdata.note': 'High-quality satellite image (Sentinel-2, 1 pixel = 10 m), roads, rivers and locality boundaries — Monapo and Malema–Ribáue. Downloaded by itself when there is signal, then works without signal.',
+    'mapdata.note': 'High-quality satellite image (Sentinel-2, 1 pixel = 10 m), roads, rivers and locality boundaries — Monapo district. Downloaded by itself when there is signal, then works without signal.',
     'mapdata.retry': 'Download now',
     'mapdata.checking': 'Checking map data…',
     'mapdata.waiting': 'Map data will download when there is signal',
@@ -445,7 +445,7 @@ const DICT = {
     'off.lastSync': 'サーバーと最後につながった時刻:{time}', 'off.never': 'まだサーバーとつながっていません',
 
     'off.map.title': '圏外用の地図',
-    'off.map.note': '必要なときだけ:地図の真ん中のまわりを、さらに細かくこの端末に保存します(OpenStreetMap)。「この辺り」は {km} km 四方で家まで。「広い範囲」は半径 {r} km で、道・川・集落名(Monapo と Malema〜Ribáue の外で役立ちます)。',
+    'off.map.note': '必要なときだけ:地図の真ん中のまわりを、さらに細かくこの端末に保存します(OpenStreetMap)。「この辺り」は {km} km 四方で家まで。「広い範囲」は半径 {r} km で、道・川・集落名(Monapo 郡の外で役立ちます)。',
     'off.map.save': 'この辺りを保存({km} km 四方・家まで)',
     'off.map.busy': '地図を取り込んでいます…(1〜3分かかることがあります)',
     'off.map.done': '地図を保存しました:{name}({n} 件)。圏外でも使えます。',
@@ -484,7 +484,7 @@ const DICT = {
     'map.layers': '地図の種類', 'map.locate': '現在地',
     'map.type.sat': '衛星写真(道・境界つき)', 'map.type.plain': '衛星写真なしの地図',
     'mapdata.title': '地図データ(自動)',
-    'mapdata.note': '高画質の衛星写真(Sentinel-2、1画素 10 m)と、道・川・localidade の境界。Monapo と Malema〜Ribáue。電波のあるときに自動で入り、そのあとは圏外でも使えます。',
+    'mapdata.note': '高画質の衛星写真(Sentinel-2、1画素 10 m)と、道・川・localidade の境界。Monapo 郡。電波のあるときに自動で入り、そのあとは圏外でも使えます。',
     'mapdata.retry': '今すぐダウンロード',
     'mapdata.checking': '地図データを確かめています…',
     'mapdata.waiting': '電波のあるときに地図データを自動で入れます',
@@ -615,7 +615,7 @@ const HELP = {
 <h3>1. Antes de ir ao campo (com rede)</h3>
 <ol><li>Abra a app uma vez com rede e entre com a conta Google. No menu deve aparecer <b>Pronto para usar sem rede</b>.</li>
 <li>No Chrome: menu ⋮ → <b>Adicionar ao ecrã principal</b>.</li>
-<li>O mapa de satélite de Monapo e de Malema–Ribáue (com estradas e limites) é transferido sozinho (cerca de 120 MB). Veja o estado no botão do mapa (canto direito). No Android pode fechar a app durante a transferência.</li></ol>
+<li>O mapa de satélite do distrito de Monapo (com estradas e limites) é transferido sozinho (cerca de 50 MB). Veja o estado no botão do mapa (canto direito). No Android pode fechar a app durante a transferência.</li></ol>
 <h3>2. Registar um campo</h3>
 <ol><li><b>Novo registo</b> → <b>Área</b>. A gravação começa logo.</li>
 <li>Ande pela borda e, em cada canto, toque em <b>Canto aqui</b>. A posição entra na hora. Normalmente bastam 4–10 pontos.</li>
@@ -637,7 +637,7 @@ const HELP = {
 <h3>1. Before going to the field (with signal)</h3>
 <ol><li>Open the app once with signal and sign in with Google. The menu should say <b>Ready to use offline</b>.</li>
 <li>In Chrome: menu ⋮ → <b>Add to Home screen</b>.</li>
-<li>The satellite map of Monapo and Malema–Ribáue (with roads and boundaries) downloads by itself (about 120 MB). See its state under the map button (right side). On Android you can close the app while it downloads.</li></ol>
+<li>The satellite map of Monapo district (with roads and boundaries) downloads by itself (about 50 MB). See its state under the map button (right side). On Android you can close the app while it downloads.</li></ol>
 <h3>2. Record a field</h3>
 <ol><li><b>New record</b> → <b>Area</b>. Recording starts at once.</li>
 <li>Walk along the edge and, at each corner, tap <b>Corner here</b>. The position is added instantly. Usually 4–10 points are enough.</li>
@@ -659,7 +659,7 @@ const HELP = {
 <h3>1. 現場に行く前に(電波のある所で)</h3>
 <ol><li>電波のある所で一度アプリを開き、Google でログインします。メニューに「<b>圏外で使う準備ができています</b>」と出れば OK。</li>
 <li>Chrome のメニュー ⋮ →「<b>ホーム画面に追加</b>」。</li>
-<li>Monapo と Malema〜Ribáue の衛星写真の地図(道・境界つき、約 120 MB)は自動で入ります。進み具合は右の地図ボタンで見られます。Android ではダウンロード中にアプリを閉じても続きます。</li></ol>
+<li>Monapo 郡の衛星写真の地図(道・境界つき、約 50 MB)は自動で入ります。進み具合は右の地図ボタンで見られます。Android ではダウンロード中にアプリを閉じても続きます。</li></ol>
 <h3>2. 圃場を記録する</h3>
 <ol><li>「<b>新しく記録</b>」→「<b>区画</b>」。すぐに記録が始まります。</li>
 <li>縁を歩き、角に来たら「<b>ここを角に</b>」をタップ。その場の位置がすぐ入ります。ふつうは 4〜10 点で足ります。</li>

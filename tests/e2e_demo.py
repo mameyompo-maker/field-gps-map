@@ -42,7 +42,7 @@ PHOTO2 = os.path.join(ROOT, 'tests', 'fixtures', 'field_photo2.jpg')
 OVERPASS = os.path.join(ROOT, 'tests', 'fixtures', 'overpass_malema.json')
 MALEMA = {'lat': -14.955, 'lng': 37.41}
 MONAPO = {'lat': -14.92, 'lng': 40.31}
-RIBAUE = {'lat': -14.98, 'lng': 38.27}    # Malema の範囲の中で、取り込んだ画像(Malema の町)から離れた所
+MONAPO2 = {'lat': -15.10, 'lng': 39.95}  # Monapo 郡の中で、町から離れた所(10/27 から地図データは Monapo 郡だけ)
 # 取り込み試験用の画像(tests/make_imagery_fixtures.py で作る)。どれも真ん中がマゼンタ
 FIX = os.path.join(ROOT, 'tests', 'fixtures')
 IMG_UTM = os.path.join(FIX, 'img_utm37s_rgba.tif')
@@ -317,7 +317,7 @@ def main():
         check('help dialog shown first time', page.locator('#helpDialog[open]').count() == 1)
         page.wait_for_timeout(200)
         check('help starts at the top', page.evaluate("document.querySelector('#helpDialog').scrollTop") == 0)
-        check('version 2.0.0', page.evaluate('window.__fgm.version') == '2.0.0')
+        check('version 2.0.1', page.evaluate('window.__fgm.version') == '2.0.1')
         shot(page, '01_help')
         close_help(page)
         page.wait_for_function("() => document.querySelector('#gpsText').textContent.includes('±')", timeout=10000)
@@ -349,9 +349,9 @@ def main():
         nv = page.evaluate(BG_SHARE)
         check('satellite drawn at Monapo', not_plain(rgb) and nv <= SAT_MAX, f'background {nv} {rgb}')
         shot(page, '02c_monapo_sat')
-        rgb = wait_imagery(page, MALEMA, 13)
-        check('satellite drawn at Malema', not_plain(rgb), str(rgb))
-        shot(page, '02d_malema_sat')
+        rgb = wait_imagery(page, MONAPO2, 13)
+        check('satellite drawn in Monapo district away from town', not_plain(rgb), str(rgb))
+        shot(page, '02d_monapo2_sat')
         page.click('#btnMenu')
         page.wait_for_selector('#menuDialog[open]')
         page.wait_for_timeout(300)
@@ -714,7 +714,7 @@ def main():
         page.wait_for_timeout(800)
         check('no raw keys in menu (en)', not raw_keys(), str(raw_keys()))
         check('menu has 6 items (admin in demo)', page.locator('#menuDialog .menu-items button:not([hidden])').count() == 6)
-        check('version line offers update check', 'v2.0.0' in page.inner_text('#menuUpdate'), page.inner_text('#menuUpdate'))
+        check('version line offers update check', 'v2.0.1' in page.inner_text('#menuUpdate'), page.inner_text('#menuUpdate'))
         shot(page, '10_menu_en')
         close_dialog(page, '#menuDialog')
         page.click('#btnLayers')
@@ -857,9 +857,9 @@ def main():
         rgb = wait_imagery(page, MONAPO, 13)
         check('satellite drawn offline at Monapo', not_plain(rgb), str(rgb))
         shot(page, '11c_offline_monapo')
-        rgb = wait_imagery(page, RIBAUE, 13)
-        check('satellite drawn offline at Ribáue (Malema region)', not_plain(rgb), str(rgb))
-        shot(page, '11d_offline_ribaue')
+        rgb = wait_imagery(page, MONAPO2, 13)
+        check('satellite drawn offline away from Monapo town', not_plain(rgb), str(rgb))
+        shot(page, '11d_offline_monapo2')
         page.evaluate("(c) => window.__fgm.map.centerOn(c, 17)", page.evaluate('window.__fgm.userImagery')[0]['center'])
         page.wait_for_timeout(2000)
         check('imported image drawn offline', magenta(page.evaluate(CENTER_RGB)), str(page.evaluate(CENTER_RGB)))
@@ -955,12 +955,12 @@ def main():
         rgb = wait_imagery(pg, MONAPO, 13)
         check('background: satellite offline at Monapo', not_plain(rgb), str(rgb))
         shot(pg, '12b_bg_offline_monapo')
-        rgb = wait_imagery(pg, MALEMA, 13)
-        check('background: satellite offline at Malema', not_plain(rgb), str(rgb))
-        shot(pg, '12c_bg_offline_malema')
-        pg.evaluate('([c, z]) => window.__fgm.map.centerOn(c, z)', [MALEMA, 11])
+        rgb = wait_imagery(pg, MONAPO2, 13)
+        check('background: satellite offline away from Monapo town', not_plain(rgb), str(rgb))
+        shot(pg, '12c_bg_offline_monapo2')
+        pg.evaluate('([c, z]) => window.__fgm.map.centerOn(c, z)', [MONAPO, 11])
         pg.wait_for_timeout(1500)
-        shot(pg, '12d_bg_offline_malema_z11')
+        shot(pg, '12d_bg_offline_monapo_z11')
         errs = real_errors(berr)
         check('background: no JS errors', not errs, '\n'.join(errs[:5]))
         bg.close()
@@ -968,11 +968,11 @@ def main():
         # ---------------------------------------------------- 途中で切れたら続きから(足りない束だけ)
         print('[13] 取り込みの続き')
         rs = browser.new_context(viewport={'width': 390, 'height': 844}, locale='en-US',
-                                 permissions=['geolocation'], geolocation={'latitude': MONAPO['lat'], 'longitude': MONAPO['lng'], 'accuracy': 5})
+                                 permissions=['geolocation'], geolocation={'latitude': MALEMA['lat'], 'longitude': MALEMA['lng'], 'accuracy': 5})
         rs.add_init_script('delete window.BackgroundFetchManager;')
-        rs.add_init_script("localStorage.setItem('fgm.helpSeen', '1');")
-        # Malema の束を1つだけ落とす(Monapo を表示しているので、表示のための 1 枚ずつの取り寄せとも重ならない)
-        mal = [r for r in cat['regions'] if r['id'] != 'monapo'][0]
+        rs.add_init_script("localStorage.setItem('fgm.helpSeen', '1'); localStorage.setItem('fgm.view', JSON.stringify({lat: %s, lng: %s, zoom: 14}));" % (MALEMA['lat'], MALEMA['lng']))
+        # 束を1つだけ落とす。地図は範囲の外(Malema)を表示しているので、表示のための 1 枚ずつの取り寄せとも重ならない
+        mal = cat['regions'][0]
         victim = mal['packs'][len(mal['packs']) // 2]
         victim_name = victim['file'].split('/')[-1]
         rs.route('**/' + victim_name, lambda route: route.abort())
@@ -1002,6 +1002,20 @@ def main():
         check('resume: roads/admin not downloaded again', not json_asked, str(json_asked))
         cs = pr.evaluate(CACHE_STATS)
         check('resume: complete', md['done'] and cs['done'] == n_packs and cs['webp'] == n_tiles, f'{json.dumps(md)} {json.dumps(cs)}')
+        # 目録から外れた範囲(10/27 に外した Malema など)のデータは、次に開いたとき端末から消える
+        pr.evaluate("""async () => { const c = await caches.open('fgm-s2-v1'); const r = location.origin + '/field-gps-imagery/';
+            await c.put(r + 'malema/14/9999/9999.webp', new Response('x')); await c.put(r + 'malema/packs/p0-x.bin.done', new Response('1'));
+            await c.put(r + 'malema/osm.json?v=old', new Response('{}')); await c.put(r + 'monapo/osm.json?v=old', new Response('{}')); }""")
+        pr.reload()
+        pr.wait_for_selector('#mainScreen:not([hidden])', timeout=15000)
+        for _ in range(40):   # 掃除は起動の少しあと(取り込みの確認と一緒)に走る
+            pr.wait_for_timeout(500)
+            stale = pr.evaluate("""async () => (await (await caches.open('fgm-s2-v1')).keys()).map((q) => q.url).filter((u) => u.includes('/malema/') || u.includes('?v=old'))""")
+            if not stale:
+                break
+        check('prune: data outside the catalog removed', not stale, str(stale))
+        cs = pr.evaluate(CACHE_STATS)
+        check('prune: Monapo data kept', cs['done'] == n_packs and cs['webp'] == n_tiles and cs['json'] == n_json, json.dumps(cs))
         errs = real_errors(rerr, allow=(victim_name, 'ERR_FAILED'))
         check('resume: no JS errors', not errs, '\n'.join(errs[:5]))
         rs.close()

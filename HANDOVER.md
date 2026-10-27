@@ -1,4 +1,15 @@
-# HANDOVER — field_gps_map(2026-10-24 更新)
+# HANDOVER — field_gps_map(2026-10-27 更新)
+
+## 🆕 v2.0.1(2026-10-27)地図データは Monapo 郡だけ
+
+Kazさん「Monapo 地区だけでいい。Ribáue・Malema はいらない。西側は全部いらない。データを減らそう」。
+- 目録から Malema〜Ribáue を外し、imagery リポジトリからも malema/・s2/ を外した(Delete_candidate に移動、git 履歴にも残る)。
+  地図データは 268.7 MB → 51.1 MB(49.1 + 1.3 + 0.7)。
+- imagery.js に pruneStale:目録に無い範囲のタイル・束の印・古い版の JSON を端末から消す(もう入れた端末の 210 MB を空ける)。
+- e2e 194/194(Monapo の町から離れた点の表示、掃除の試験を追加)。
+- 「もっと細かい画像」:無料で保存して配れるものは Sentinel-2 の 10 m が上限。細かくするなら有償(Monapo 郡の見積もり済み)か、
+  Esri を使う Android アプリ。Kazさんの判断待ち。
+
 
 ## 🆕 v2.0.0(2026-10-24 公開。app e957986・imagery 82f5989。e2e 192/192、check_production ALL OK)
 
